@@ -1,0 +1,1 @@
+- might want to use JWT for agents. Should think about how agents interact and get authenticated through the platform
