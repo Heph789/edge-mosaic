@@ -1,1 +1,2 @@
 - might want to use JWT for agents. Should think about how agents interact and get authenticated through the platform
+- github is another source users may want to subscribe to, and also youtube? Definitely LinkedIn
