@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from .config import (
     DIGEST_OUTPUT_PATH,
     DIGEST_WINDOW_DAYS,
+    LONG_ITEMS_CAP,
     SHORT_ITEMS_CAP,
     SHORT_TEXT_RENDER_CHARS,
 )
@@ -52,6 +53,7 @@ def build_feeders(session: Session) -> list[dict]:
     feeders: list[dict] = []
     for name, buckets in grouped.items():
         longs = sorted(buckets.get("long", []), key=lambda i: i.published_at, reverse=True)
+        longs = longs[:LONG_ITEMS_CAP]  # cap longs to most-recent N (no quality signal in RSS)
         shorts = sorted(buckets.get("short", []), key=lambda i: i.published_at, reverse=True)
         shorts = shorts[:SHORT_ITEMS_CAP]  # cap shorts to top-N by recency
         recency = [i.published_at for i in (*longs, *shorts)]

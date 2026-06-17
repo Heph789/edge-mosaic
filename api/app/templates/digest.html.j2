@@ -61,8 +61,8 @@
     <div class="label">Also posted</div>
     {% for item in feeder.shorts %}
     <div class="short">
-      {{ item.text | truncate_words(short_text_chars) }}
-      <a href="{{ item.url }}">→</a>
+      {# RSS shorts (blogmarks) carry a title; Bluesky shorts carry text. #}
+      <a href="{{ item.url }}">{{ (item.title or item.text) | truncate_words(short_text_chars) }}</a>
       <span class="date">· {{ item.published_at.strftime("%b %d") }}</span>
     </div>
     {% endfor %}

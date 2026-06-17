@@ -16,6 +16,8 @@ HARDCODED_SOURCES: list[dict[str, str]] = [
     {"feeder_name": "Scott Alexander", "type": "rss", "url": "https://www.astralcodexten.com"},
     {"feeder_name": "Casey Newton", "type": "rss", "url": "https://www.platformer.news"},
     {"feeder_name": "Simon Willison", "type": "rss", "url": "https://simonwillison.net/"},
+    # Same feeder, second source — exercises grouping a blog + Bluesky under one feeder.
+    {"feeder_name": "Simon Willison", "type": "bluesky", "url": "@simonwillison.net"},
     {"feeder_name": "Julia Evans", "type": "rss", "url": "https://jvns.ca"},
     {"feeder_name": "Bluesky Team", "type": "bluesky", "url": "@bsky.app"},
 ]

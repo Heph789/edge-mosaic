@@ -13,7 +13,7 @@ import httpx
 
 from ..config import EXCERPT_MAX_CHARS, RSS_FETCH_TIMEOUT, USER_AGENT
 from ..models import Source
-from ..text import strip_html, truncate_on_word
+from ..text import classify_kind, strip_html, truncate_on_word
 from .base import NormalizedItem
 
 COMMON_FEED_PATHS = ["/feed", "/rss", "/feed.xml", "/atom.xml", "/index.xml"]
@@ -111,12 +111,19 @@ class RSSAdapter:
             or hashlib.sha1(f"{title}{link}".encode()).hexdigest()
         )
 
+        # Length classification uses the fullest body available (Atom <content> when
+        # present, else <summary>); the displayed excerpt stays the author's summary.
+        body = entry.get("summary") or entry.get("description")
+        if entry.get("content"):
+            body = entry.content[0].get("value") or body
+        stripped_body = strip_html(body)
+
         raw_excerpt = entry.get("summary") or entry.get("description")
         excerpt = truncate_on_word(strip_html(raw_excerpt), EXCERPT_MAX_CHARS) or None
 
         return NormalizedItem(
             external_id=external_id,
-            kind="long",
+            kind=classify_kind(stripped_body),
             title=title,
             url=link,
             text=None,

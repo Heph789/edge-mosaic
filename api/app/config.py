@@ -23,5 +23,12 @@ BLUESKY_FEED_LIMIT = 30
 # Render / capping knobs (Slice 1 §Render).
 DIGEST_WINDOW_DAYS = 30
 SHORT_ITEMS_CAP = 3
+LONG_ITEMS_CAP = 5  # even genuine essays pile up for prolific bloggers; cap by recency
 EXCERPT_MAX_CHARS = 200
 SHORT_TEXT_RENDER_CHARS = 100
+
+# kind classification for RSS (no post-type/engagement signal exists — length is the
+# only proxy). Body in [MIN, MAX] chars → 'short'; outside → 'long'. The MIN floor keeps
+# truncated/paywalled stubs (e.g. a 9-char excerpt of a real essay) classified 'long'.
+KIND_SHORT_MIN_CHARS = 50
+KIND_SHORT_MAX_CHARS = 1500
