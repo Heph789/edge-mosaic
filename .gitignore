@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.python-version
+*.egg-info/
+dist/
+build/
+
+# uv
+# (uv.lock IS committed)
+
+# Spike data + generated output
+api/data/
+*.db
