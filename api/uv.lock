@@ -261,6 +261,7 @@ dependencies = [
     { name = "jinja2" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic", extra = ["email"] },
+    { name = "python-dotenv" },
     { name = "sqlalchemy" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -281,6 +282,7 @@ requires-dist = [
     { name = "jinja2", specifier = ">=3.1" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.1" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.7" },
+    { name = "python-dotenv", specifier = ">=1.0" },
     { name = "sqlalchemy", specifier = ">=2.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
 ]

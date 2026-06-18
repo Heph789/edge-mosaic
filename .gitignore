@@ -16,3 +16,7 @@ api/data/
 
 # temporary csv input
 api/input/
+
+# local secrets (.env.example IS committed)
+.env
+.env.local

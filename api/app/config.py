@@ -1,13 +1,19 @@
-"""Spike configuration. Dev uses a local SQLite file; prod becomes Postgres in Slice 4."""
+"""App configuration. Dev uses a local SQLite file; prod is Postgres (Slice 4)."""
 
 from __future__ import annotations
 
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 API_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = API_DIR / "data"
 DATA_DIR.mkdir(exist_ok=True)
+
+# Load api/.env if present, so the server *and* the cron jobs pick up local config/secrets.
+# Real environment variables (e.g. Railway's) always win — load_dotenv never overrides them.
+load_dotenv(API_DIR / ".env")
 
 # Dialect-agnostic URL. Local dev defaults to SQLite; prod (Railway) sets DATABASE_URL to
 # Postgres. Railway hands out `postgres://` / `postgresql://` — normalize to the psycopg3
