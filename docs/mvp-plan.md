@@ -264,6 +264,13 @@ Consciously punted from the MVP, roughly in priority order:
 - **X / Twitter** — adapter stub now; if forced, a hosted **Apify** actor (not
   self-hosted `twscrape` on Railway) — scraping needs auth'd accounts + residential
   proxies and faces bans regardless of frequency.
+- **LinkedIn** — walled garden, harder than X. No public feed (RSS long dead), all
+  content behind a login wall, and bots get HTTP 999. No scraping fallback worth the
+  ToS/anti-bot risk. The only official read path is the **Community Management API**,
+  which is org/brand-**Page**-scoped, commercial-only, and partner-approval-gated
+  (low approval rate, weeks–months) — there is *no* product for reading individuals'
+  personal posts, which is what the Edge community actually publishes. Realistic
+  post-MVP shape if pursued: member-authorized OAuth, not a URL resolver.
 - **Non-feed personal/company websites** — true HTML scraping (no RSS).
 - **Source-health handling** — track consecutive failures, flag broken sources in the
   feeder dashboard, optionally email feeders (options a/b from the design discussion;
