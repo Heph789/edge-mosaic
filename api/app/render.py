@@ -122,10 +122,18 @@ def build_feeders(session: Session) -> list[dict]:
 
 def render_digest(session: Session, output_path: Path | None = None) -> Path:
     output_path = output_path or DIGEST_OUTPUT_PATH
+    feeders = build_feeders(session)
+
+    # Feeders with sources but nothing in the window — surfaced, not silently dropped.
+    active = {f["name"] for f in feeders}
+    all_feeders = set(session.scalars(select(Source.feeder_name)).all())
+    quiet_feeders = sorted(all_feeders - active)
+
     env = _build_env()
     template = env.get_template("digest.html.j2")
     html = template.render(
-        feeders=build_feeders(session),
+        feeders=feeders,
+        quiet_feeders=quiet_feeders,
         generated_at=datetime.now(timezone.utc),
         window_days=DIGEST_WINDOW_DAYS,
         short_text_chars=SHORT_TEXT_RENDER_CHARS,

@@ -28,6 +28,10 @@
   .short a { color: #0b5cad; text-decoration: none; }
   .short a:hover { text-decoration: underline; }
   .empty { color: #999; font-style: italic; }
+  .quiet { border-top: 1px solid #e5e5e5; margin-top: 32px; padding-top: 20px; color: #999; }
+  .quiet h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .04em; margin: 0 0 8px; }
+  .quiet p { font-size: 13px; margin: 0; }
+  .quiet .names { color: #777; }
 </style>
 </head>
 <body>
@@ -73,6 +77,14 @@
   {% endfor %}
 </section>
 {% endfor %}
+
+{% if quiet_feeders %}
+<section class="quiet">
+  <h2>No updates</h2>
+  <p>Nothing in the last {{ window_days }} days from
+    <span class="names">{{ quiet_feeders | join(", ") }}</span>.</p>
+</section>
+{% endif %}
 
 </body>
 </html>
