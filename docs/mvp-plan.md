@@ -209,17 +209,27 @@ Substack Notes (short), X threads (long), video/podcast — slot in with no sche
 
 ### Send mechanics
 - **One personalized email per due subscriber** (not a broadcast).
-- **Skip empty sends** — no email if nothing is new (avoids training people to ignore
-  digests / spam-complaints). Advance the cutoff on every run, send or skip (the
-  empty-period edge case where this matters is negligible at MVP scale).
+- **Idempotency + skip-empty via a `sent_digests` log** (Slice 4): one row per
+  `(subscriber, anchor)` period, `UNIQUE(subscriber_id, anchor_date)`. Skip-empty still
+  writes a row (`sent=false, item_count=0`) so it isn't re-attempted; a missed cron day
+  self-heals because the anchor simply isn't logged yet. Assemble → send → log+commit
+  (a crash between send and commit can rarely duplicate — accepted; we never log a `sent`
+  row for a send that raised, so failures retry rather than drop).
 - **First-subscribe experience:** immediate **in-app preview** ("here's what your digest
   will look like") + a **one-off emailed welcome sample** (also serves as a
-  deliverability canary). Both are clearly labeled as samples and don't disturb cadence.
+  deliverability canary; best-effort — never fails the subscribe). Both are clearly
+  labeled as samples and don't disturb cadence.
 - **Unsubscribe:** every digest carries a one-click **global unsubscribe** token link
-  (sets `digest_paused`). Per-feeder unsubscribe is just removing a subscription in-app.
+  (opaque per-user `unsubscribe_token` column → sets `digest_paused`). It's a **POST**
+  (anti-prefetch, like the magic link) and ships **RFC 8058 `List-Unsubscribe` +
+  `List-Unsubscribe-Post`** headers. Per-feeder unsubscribe is just removing a
+  subscription in-app.
 
 ### Email / deliverability notes
 - Magic links (transactional, critical-path) and digests (bulk) both go through Resend.
+- **Backend is env-flagged behind `send_email()`** (Slice 4): default `console` (logs the
+  message, no real delivery — send-safe), flip to `resend` via `EMAIL_BACKEND` once a
+  domain is verified. The Resend swap is the one-file change the interface promised.
 - Provider choice matters less than a properly **authenticated sending domain
   (SPF/DKIM/DMARC)** — that's what keeps magic links out of spam.
 - Watch item: bulk digests attract spam complaints, which can degrade shared sender
@@ -238,6 +248,7 @@ users
   digest_paused (bool, default false)
   verified_at (nullable)         -- NULL = pre-seeded ghost, never logged in
   onboarded (bool, default false)-- explicit; decoupled from display_name
+  unsubscribe_token (unique)     -- opaque; embedded in the digest unsubscribe link (Slice 4)
   last_digest_sent_at · last_covered_through · created_at
 
 allowed_emails            -- CSV allowlist gate
@@ -268,6 +279,11 @@ items                     -- scraped content (durable history)
 subscriptions             -- subscriber → feeder (both FK users.id; "feeder" is a role, not a table)
   id · subscriber_id (FK users.id) · feeder_id (FK users.id) · created_at
   UNIQUE(subscriber_id, feeder_id)   -- added in Slice 3 (migration 0003)
+
+sent_digests              -- one row per (subscriber, anchor) period; dedup + audit (Slice 4)
+  id · subscriber_id (FK users.id) · anchor_date (date)
+  window_start · window_end · item_count · sent (bool) · created_at
+  UNIQUE(subscriber_id, anchor_date)   -- idempotency + self-heal key (migration 0004)
 ```
 
 Notes:
@@ -319,8 +335,11 @@ a runnable milestone.
    windowing + capping, in-app preview. Ingestion is resurrected on `user_id` (manual
    `cli scrape`); the cron wrapper + actual send stay Slice 4. API-only — curl/pytest.
    **Full spec:** [`slice-3-crud.md`](./slice-3-crud.md).
-4. **Slice 4 — Cron + Postgres + email** — migrate SQLite→Postgres on Railway, daily
-   scrape + digest crons, Resend send, welcome sample, unsubscribe.
+4. **Slice 4 — Cron + Postgres + email** — Postgres in prod (SQLite stays local + tests),
+   daily scrape + digest cron entrypoints (`app.jobs.scrape` / `app.jobs.digest`),
+   calendar-anchored due-scheduling + `sent_digests` idempotency, env-flagged Resend send
+   behind `send_email()`, welcome sample, one-click unsubscribe. Migrations validated on
+   real Postgres. **Full spec:** [`slice-4-cron-email.md`](./slice-4-cron-email.md).
 5. **Slice 5 — Frontend** — the 7 screens tied together.
 
 > Why not auth-first: auth and frontend are well-trodden and certain to work; ingestion

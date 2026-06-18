@@ -36,14 +36,20 @@ def db():
 
 @pytest.fixture
 def sent_emails(monkeypatch):
-    """Capture magic-link emails instead of printing them; expose (to, subject, body)."""
-    captured: list[tuple[str, str, str]] = []
+    """Capture emails instead of sending; expose dicts with to/subject/html/text/headers."""
+    captured: list[dict] = []
 
-    def fake_send(to: str, subject: str, body: str) -> None:
-        captured.append((to, subject, body))
+    def fake_send(to, subject, html, text=None, headers=None):
+        captured.append(
+            {"to": to, "subject": subject, "html": html, "text": text, "headers": headers}
+        )
 
-    # auth.py did `from .email import send_email`, so patch the name it bound.
-    monkeypatch.setattr("app.auth.send_email", fake_send)
+    # Patch every module that bound `send_email` via `from .email import send_email`.
+    for target in ("app.auth.send_email", "app.jobs.digest.send_email"):
+        try:
+            monkeypatch.setattr(target, fake_send)
+        except (AttributeError, ImportError):
+            pass
     return captured
 
 

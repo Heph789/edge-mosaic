@@ -12,7 +12,7 @@ from fastapi import FastAPI, Header, HTTPException, status
 
 from . import auth
 from .deps import CurrentUser, DbDep
-from .routers import discover, digest, sources, subscriptions
+from .routers import discover, digest, sources, subscriptions, unsubscribe
 from .schemas import (
     GenericMessage,
     RequestLinkIn,
@@ -29,6 +29,7 @@ app.include_router(sources.router)
 app.include_router(subscriptions.router)
 app.include_router(discover.router)
 app.include_router(digest.router)
+app.include_router(unsubscribe.router)
 
 _ELIGIBLE_MSG = "If your email is eligible, a login link is on its way."
 

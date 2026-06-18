@@ -8,8 +8,11 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+import secrets
+
 from sqlalchemy import (
     Boolean,
+    Date,
     DateTime,
     ForeignKey,
     Integer,
@@ -26,6 +29,10 @@ from sqlalchemy.orm import (
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def new_unsubscribe_token() -> str:
+    return secrets.token_urlsafe(24)
 
 
 class Base(DeclarativeBase):
@@ -50,6 +57,10 @@ class User(Base):
         String, nullable=False, default="weekly"
     )  # 'weekly' | 'monthly'
     digest_paused: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Opaque per-user token embedded in the digest unsubscribe link (Slice 4).
+    unsubscribe_token: Mapped[str] = mapped_column(
+        String, nullable=False, unique=True, default=new_unsubscribe_token
+    )
     verified_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
@@ -130,6 +141,31 @@ class Subscription(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     subscriber_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     feeder_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+
+
+class SentDigest(Base):
+    """One row per (subscriber, anchor) digest period — dedup + audit (Slice 4).
+
+    `sent=False, item_count=0` records a skip-empty period so it isn't re-attempted; the
+    UNIQUE(subscriber_id, anchor_date) is what makes the digest job idempotent and lets a
+    missed cron day self-heal (the anchor simply isn't logged yet).
+    """
+
+    __tablename__ = "sent_digests"
+    __table_args__ = (
+        UniqueConstraint("subscriber_id", "anchor_date", name="uq_sent_digest_period"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    subscriber_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    anchor_date: Mapped[datetime] = mapped_column(Date, nullable=False)
+    window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    item_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    sent: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
     )

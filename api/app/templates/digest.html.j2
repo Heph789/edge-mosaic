@@ -28,18 +28,20 @@
   .short a { color: #0b5cad; text-decoration: none; }
   .short a:hover { text-decoration: underline; }
   .empty { color: #999; font-style: italic; }
+  footer { border-top: 1px solid #e5e5e5; margin-top: 40px; padding-top: 16px; color: #999; font-size: 12px; }
+  footer a { color: #999; }
 </style>
 </head>
 <body>
 <header>
   <h1>Your Edge Mosaic digest</h1>
   <div class="meta">
-    Last {{ window_days }} days · generated {{ generated_at.strftime("%Y-%m-%d %H:%M UTC") }}
+    {{ window_start.strftime("%b %d") }} – {{ window_end.strftime("%b %d, %Y") }}
   </div>
 </header>
 
 {% if not feeders %}
-  <p class="empty">No items in the last {{ window_days }} days. Run a scrape first.</p>
+  <p class="empty">Nothing new from the people you follow this period.</p>
 {% endif %}
 
 {% for feeder in feeders %}
@@ -70,6 +72,11 @@
   {% endif %}
 </section>
 {% endfor %}
+
+<footer>
+  You're receiving this because you subscribed on Edge Mosaic.
+  {% if unsubscribe_url %}<a href="{{ unsubscribe_url }}">Unsubscribe from all digests</a>.{% endif %}
+</footer>
 
 </body>
 </html>

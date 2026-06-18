@@ -9,8 +9,20 @@ API_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = API_DIR / "data"
 DATA_DIR.mkdir(exist_ok=True)
 
-# Dialect-agnostic URL. Swap to Postgres in Slice 4 via the same env var.
-DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{DATA_DIR / 'edge_mosaic.db'}")
+# Dialect-agnostic URL. Local dev defaults to SQLite; prod (Railway) sets DATABASE_URL to
+# Postgres. Railway hands out `postgres://` / `postgresql://` — normalize to the psycopg3
+# driver so we don't silently fall back to psycopg2.
+def _normalize_db_url(url: str) -> str:
+    if url.startswith("postgres://"):
+        url = "postgresql://" + url[len("postgres://"):]
+    if url.startswith("postgresql://"):
+        url = "postgresql+psycopg://" + url[len("postgresql://"):]
+    return url
+
+
+DATABASE_URL = _normalize_db_url(
+    os.environ.get("DATABASE_URL", f"sqlite:///{DATA_DIR / 'edge_mosaic.db'}")
+)
 
 DIGEST_OUTPUT_PATH = DATA_DIR / "digest.html"
 
@@ -56,7 +68,19 @@ DISPLAY_NAME_MAX_CHARS = 50
 # Overridable so Slice 5 can point at the real CDN origin.
 APP_BASE_URL = os.environ.get("APP_BASE_URL", "http://localhost:5173")
 
+# The API's own public origin (split-origin from the SPA). Used for the RFC 8058
+# one-click unsubscribe POST target in List-Unsubscribe headers.
+API_BASE_URL = os.environ.get("API_BASE_URL", "http://localhost:8000")
+
 # Default allowlist roster (real attendee PII — gitignored, never read into the repo).
 ALLOWLIST_CSV_DEFAULT = next(
     iter(sorted((API_DIR / "input").glob("attendees-*.csv"))), None
 )
+
+# --- Slice 4: cron + email (§5) -------------------------------------------------------
+# Email backend behind the send_email() seam. Default 'console' (no real delivery) so the
+# app stays send-safe until a verified domain is wired; set EMAIL_BACKEND=resend in prod.
+EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND", "console")
+EMAIL_FROM = os.environ.get("EMAIL_FROM", "Edge Mosaic <digest@edgemosaic.example>")
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+RESEND_API_URL = "https://api.resend.com/emails"

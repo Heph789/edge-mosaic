@@ -1,0 +1,3 @@
+web: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+scrape: python -m app.jobs.scrape
+digest: python -m app.jobs.digest

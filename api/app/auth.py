@@ -57,16 +57,18 @@ def request_magic_link(db: DbSession, raw_email: str) -> None:
     db.commit()
 
     link = f"{config.APP_BASE_URL}/auth/verify?token={raw}"
-    send_email(
-        to=email,
-        subject="Your Edge Mosaic login link",
-        body=(
-            f"Click to log in (expires in {config.MAGIC_LINK_TTL_MINUTES} min):\n{link}\n\n"
-            f"[dev] exchange it directly:\n"
-            f"  curl -s -X POST localhost:8000/auth/verify "
-            f"-H 'content-type: application/json' -d '{{\"token\": \"{raw}\"}}'\n"
-        ),
+    mins = config.MAGIC_LINK_TTL_MINUTES
+    text = (
+        f"Click to log in (expires in {mins} min):\n{link}\n\n"
+        f"[dev] exchange it directly:\n"
+        f"  curl -s -X POST localhost:8000/auth/verify "
+        f"-H 'content-type: application/json' -d '{{\"token\": \"{raw}\"}}'\n"
     )
+    html = (
+        f'<p>Click to log in (expires in {mins} min):</p>'
+        f'<p><a href="{link}">Log in to Edge Mosaic</a></p>'
+    )
+    send_email(to=email, subject="Your Edge Mosaic login link", html=html, text=text)
 
 
 @dataclass

@@ -1,16 +1,15 @@
 """Operator CLI.
 
     python -m app.cli import-allowlist [csv]  # seed allowed_emails + pre-seed named users
-    python -m app.cli scrape    # (dormant since Slice 2 — needs real user_id sources)
-    python -m app.cli render    # (dormant since Slice 2)
-    python -m app.cli run       # scrape then render
+    python -m app.cli scrape                  # fetch all real sources, dedup-insert items
+
+The digest send runs as a job entrypoint, not here: `python -m app.jobs.digest`.
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
-import webbrowser
 from pathlib import Path
 
 from alembic import command
@@ -21,7 +20,6 @@ from .allowlist import import_allowlist
 from .config import API_DIR
 from .db import SessionLocal
 from .ingest import scrape
-from .render import render_digest
 
 
 def ensure_schema() -> None:
@@ -46,20 +44,6 @@ def cmd_scrape() -> None:
     print(f"\n{total_new} new item(s) stored.")
 
 
-def cmd_render(open_browser: bool = True) -> None:
-    ensure_schema()
-    with SessionLocal() as session:
-        path = render_digest(session)
-    print(f"Digest written to {path}")
-    if open_browser:
-        webbrowser.open(path.as_uri())
-
-
-def cmd_run() -> None:
-    cmd_scrape()
-    cmd_render()
-
-
 def cmd_import_allowlist(csv_arg: str | None) -> int:
     ensure_schema()
     csv_path = Path(csv_arg) if csv_arg else config.ALLOWLIST_CSV_DEFAULT
@@ -81,24 +65,17 @@ def cmd_import_allowlist(csv_arg: str | None) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="app.cli", description="Edge Mosaic ingestion spike")
+    parser = argparse.ArgumentParser(prog="app.cli", description="Edge Mosaic operator CLI")
     sub = parser.add_subparsers(dest="command", required=True)
     imp_p = sub.add_parser("import-allowlist", help="seed allowed_emails + pre-seed named users")
     imp_p.add_argument("csv", nargs="?", default=None, help="path to roster CSV (defaults to api/input/attendees-*.csv)")
-    sub.add_parser("scrape", help="(dormant since Slice 2) fetch hardcoded sources")
-    render_p = sub.add_parser("render", help="(dormant since Slice 2) render the HTML digest")
-    render_p.add_argument("--no-open", action="store_true", help="don't open a browser")
-    sub.add_parser("run", help="scrape then render")
+    sub.add_parser("scrape", help="fetch all real sources and store deduped items")
 
     args = parser.parse_args(argv)
     if args.command == "import-allowlist":
         return cmd_import_allowlist(args.csv)
     elif args.command == "scrape":
         cmd_scrape()
-    elif args.command == "render":
-        cmd_render(open_browser=not args.no_open)
-    elif args.command == "run":
-        cmd_run()
     return 0
 
 

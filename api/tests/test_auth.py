@@ -17,9 +17,9 @@ def _allow(db, email, name=None, preseed=False):
     db.commit()
 
 
-def _token_from(body: str) -> str:
-    m = re.search(r"token=([^\s&]+)", body)
-    assert m, f"no token in email body:\n{body}"
+def _token_from(text: str) -> str:
+    m = re.search(r"token=([^\s&\"]+)", text)
+    assert m, f"no token in email body:\n{text}"
     return m.group(1)
 
 
@@ -27,7 +27,7 @@ def _request_and_get_token(client, sent_emails, email) -> str:
     r = client.post("/auth/request-link", json={"email": email})
     assert r.status_code == 200
     assert "eligible" in r.json()["message"].lower()
-    return _token_from(sent_emails[-1][2])
+    return _token_from(sent_emails[-1]["text"])
 
 
 def test_request_link_privacy_no_enumeration(client, sent_emails, db):

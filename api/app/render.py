@@ -1,25 +1,17 @@
-"""Render the digest: items from the last ~30 days, grouped + capped per feeder.
+"""Render a `DigestData` (from the assembly engine) to the HTML email body (Slice 4).
 
-This Jinja template is the seed of the real digest email template (Slice 4).
+The same `assemble_digest` output that feeds the JSON preview is rendered here to HTML —
+one engine, two sinks.
 """
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
-from sqlalchemy import select
-from sqlalchemy.orm import Session
 
-from .config import (
-    DIGEST_OUTPUT_PATH,
-    DIGEST_WINDOW_DAYS,
-    LONG_ITEMS_CAP,
-    SHORT_ITEMS_CAP,
-    SHORT_TEXT_RENDER_CHARS,
-)
-from .models import Item, Source
+from .config import SHORT_TEXT_RENDER_CHARS
+from .digest import DigestData
 from .text import truncate_on_word
 
 _TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
@@ -36,50 +28,17 @@ def _build_env() -> Environment:
     return env
 
 
-def build_feeders(session: Session) -> list[dict]:
-    """Group last-window items by feeder, cap shorts, order everything (Slice 1 §Render)."""
-    cutoff = datetime.now(timezone.utc) - timedelta(days=DIGEST_WINDOW_DAYS)
-    rows = session.execute(
-        select(Item, Source.feeder_name)
-        .join(Source, Item.source_id == Source.id)
-        .where(Item.published_at >= cutoff)
-    ).all()
-
-    grouped: dict[str, dict[str, list[Item]]] = {}
-    for item, feeder_name in rows:
-        bucket = grouped.setdefault(feeder_name, {"long": [], "short": []})
-        bucket.setdefault(item.kind, []).append(item)
-
-    feeders: list[dict] = []
-    for name, buckets in grouped.items():
-        longs = sorted(buckets.get("long", []), key=lambda i: i.published_at, reverse=True)
-        longs = longs[:LONG_ITEMS_CAP]  # cap longs to most-recent N (no quality signal in RSS)
-        shorts = sorted(buckets.get("short", []), key=lambda i: i.published_at, reverse=True)
-        shorts = shorts[:SHORT_ITEMS_CAP]  # cap shorts to top-N by recency
-        recency = [i.published_at for i in (*longs, *shorts)]
-        feeders.append(
-            {
-                "name": name,
-                "longs": longs,  # all long items, recency-ordered
-                "shorts": shorts,
-                "last_activity": max(recency) if recency else cutoff,
-            }
-        )
-
-    # Feeders ordered by most-recent activity.
-    feeders.sort(key=lambda f: f["last_activity"], reverse=True)
-    return feeders
-
-
-def render_digest(session: Session, output_path: Path | None = None) -> Path:
-    output_path = output_path or DIGEST_OUTPUT_PATH
+def render_digest_html(data: DigestData, unsubscribe_url: str) -> str:
     env = _build_env()
     template = env.get_template("digest.html.j2")
-    html = template.render(
-        feeders=build_feeders(session),
-        generated_at=datetime.now(timezone.utc),
-        window_days=DIGEST_WINDOW_DAYS,
+    feeders = [
+        {"name": f.display_name or "Someone", "longs": f.longs, "shorts": f.shorts}
+        for f in data.feeders
+    ]
+    return template.render(
+        feeders=feeders,
+        window_start=data.window_start,
+        window_end=data.window_end,
         short_text_chars=SHORT_TEXT_RENDER_CHARS,
+        unsubscribe_url=unsubscribe_url,
     )
-    output_path.write_text(html, encoding="utf-8")
-    return output_path
