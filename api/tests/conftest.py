@@ -1,0 +1,100 @@
+"""Test harness: an isolated temp SQLite DB + an in-process API client.
+
+DATABASE_URL is pointed at a throwaway temp file *before* any app module imports, so the
+engine binds to it. Tables are built from the models (fast; the Alembic migrations are
+exercised separately by the migration itself).
+"""
+
+from __future__ import annotations
+
+import os
+import tempfile
+from pathlib import Path
+
+import pytest
+
+_TMP_DB = Path(tempfile.mkdtemp()) / "test.db"
+os.environ["DATABASE_URL"] = f"sqlite:///{_TMP_DB}"
+
+from app.db import SessionLocal, engine  # noqa: E402  (after env is set)
+from app.models import Base  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def fresh_db():
+    """Drop + recreate all tables before each test for full isolation."""
+    Base.metadata.drop_all(engine)
+    Base.metadata.create_all(engine)
+    yield
+
+
+@pytest.fixture
+def db():
+    with SessionLocal() as session:
+        yield session
+
+
+@pytest.fixture
+def sent_emails(monkeypatch):
+    """Capture magic-link emails instead of printing them; expose (to, subject, body)."""
+    captured: list[tuple[str, str, str]] = []
+
+    def fake_send(to: str, subject: str, body: str) -> None:
+        captured.append((to, subject, body))
+
+    # auth.py did `from .email import send_email`, so patch the name it bound.
+    monkeypatch.setattr("app.auth.send_email", fake_send)
+    return captured
+
+
+@pytest.fixture
+def client():
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    with TestClient(app) as c:
+        yield c
+
+
+@pytest.fixture
+def make_user(db):
+    """Factory: create a user. Given a display_name → treated as onboarded."""
+    from app.models import User
+
+    def _make(email, display_name=None, **kw):
+        user = User(
+            email=email,
+            display_name=display_name,
+            onboarded=bool(display_name),
+            **kw,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return user
+
+    return _make
+
+
+@pytest.fixture
+def auth(db):
+    """Factory: mint a real session row for a user → return Bearer headers."""
+    from datetime import timedelta
+
+    from app.models import Session, utcnow
+    from app.security import hash_token, new_token
+
+    def _auth(user):
+        raw = new_token()
+        db.add(
+            Session(
+                user_id=user.id,
+                token_hash=hash_token(raw),
+                expires_at=utcnow() + timedelta(days=30),
+            )
+        )
+        db.commit()
+        return {"Authorization": f"Bearer {raw}"}
+
+    return _auth

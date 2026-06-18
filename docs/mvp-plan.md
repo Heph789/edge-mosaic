@@ -55,16 +55,57 @@ sends are recurring background jobs, not request/response.
   — no official Edge API needed; a real check can later slot behind the same gate.
 - **One unified account** — a user is both feeder and subscriber. They "become a
   feeder" simply by adding content sources. No separate account types.
-- **Display name** is typed by the user at signup (used for search + "From <name>"
-  digest headers).
+- **Display name** (used for search + "From <name>" digest headers) is **preseeded
+  from the allowlist roster, then user-editable at onboarding** — there's no classic
+  signup form in a magic-link flow. The roster's full name is reduced to **first name +
+  last initial** (`"Jane Smith"` → `"Jane S."`) *at import time*; the full surname is
+  never persisted. If the roster has no usable name, `display_name` starts `NULL` and
+  onboarding collects it.
+
+### User lifecycle & pre-seeding
+A `users` row has three **independent** states — don't conflate them:
+- **Exists** — a row is present. Created either by **pre-seeding** (at allowlist import,
+  for named roster entries only) or **lazily at verify** (for un-pre-seeded / anonymized
+  people, in the same transaction as their first login).
+- **Verified** (`verified_at`) — has proven inbox ownership ≥ once. `NULL` = a pre-seeded
+  ghost nobody's claimed yet (subscribable in Discover, but never logged in). The lazy
+  path never yields `NULL` — those rows are born verified.
+- **Onboarded** (`onboarded` bool) — explicit flag, **decoupled from `display_name`**
+  precisely because a pre-seeded user can already have a preseeded name yet not be
+  onboarded.
+
+**Pre-seeding** lets members **pre-subscribe to people who haven't joined yet** (solves
+Discover cold-start). For the MVP, allowlist import **auto-creates a pre-seeded user for
+every *named* roster entry**; anonymized entries (no name) get only the `allowed_emails`
+gate row and a lazily-created user if they ever log in. (Selective opt-in seeding was the
+alternative; auto-all was chosen to see the product fully populated pre-release — all
+this data is throwaway until launch.)
+
+**User creation at verify is get-or-create** keyed on the normalized email: it finds the
+pre-seeded row if present (stamping `verified_at` + `allowed_emails.claimed_by_user_id`),
+else creates it. `UNIQUE(email)` makes this collision-free.
 
 ### Sessions
 - **Opaque server-side session tokens** (random string, row in `sessions`), sent as
   `Authorization: Bearer <token>`. Chosen over JWT because: revocable, no signing-key
   management, no stale claims, and the single-service + Postgres shape makes JWT
   statelessness worthless here.
-- Session expiry ~30 days (low-stakes; re-login is just another magic link).
-- Magic-link tokens: **single-use, ~15-min expiry**, stored hashed.
+- Session expiry **fixed ~30 days** from creation, no sliding renewal (low-stakes;
+  re-login is just another magic link). `POST /auth/logout` deletes the session row —
+  exercising the revocability that was the whole reason for opaque tokens over JWT.
+- Magic-link tokens: **single-use, ~15-min expiry**, stored hashed. Verify claims the
+  token **atomically** (`UPDATE … SET used_at=now() WHERE token_hash=? AND used_at IS
+  NULL AND expires_at>now()`, check rowcount=1) — no TOCTOU window. Each new request
+  **invalidates prior unused tokens** for that email, so there's only ever one live link.
+- **Token hashing = plain `sha256`**, not bcrypt/argon2: these are 256-bit
+  `secrets.token_urlsafe(32)` random strings, so there's nothing to brute-force and a
+  fast digest is correct. Raw token lives only in the URL / Bearer header; the DB stores
+  `sha256(token)` in `UNIQUE` hash columns. Applies to both magic-link and session tokens.
+- **Anti-prefetch:** the email link targets the SPA landing route, and the token exchange
+  is a deliberate `POST /auth/verify {token}` (token in **body**, never the query string).
+  A bare GET prefetch by an email scanner only loads static JS — it doesn't fire the POST,
+  so it can't burn the single-use token. We consciously never expose a GET that consumes a
+  token.
 - Token stored in localStorage. **XSS rule:** all scraped content is rendered as
   escaped plain text — never `dangerouslySetInnerHTML` on feed/Bluesky content.
 
@@ -94,10 +135,16 @@ sends are recurring background jobs, not request/response.
   - `*.substack.com` / custom domain → try `/feed`.
   - anything else → **RSS autodiscovery** (`<link rel="alternate" type="application/rss+xml">`,
     fall back to `/feed`, `/rss`).
-- **Validate synchronously** at add-time (fetch + parse, ~5s timeout). Reject dead
-  feeds immediately rather than storing a silently-broken source.
+- **Validate synchronously** at add-time (fetch + parse, ~5s per-request timeout + an
+  overall resolution deadline so pathological autodiscovery can't hang the request).
+  Reject dead feeds immediately rather than storing a silently-broken source.
 - **Confirm** to the feeder: "✅ Found N recent posts, latest: '<title>' — is this right?"
 - **Multiple sources per feeder** allowed (e.g. their Substack *and* their Bluesky).
+- **Two endpoints** (Slice 3): `POST /sources/preview` validates + returns the found
+  sample with **no DB write** (powers the confirm step); `POST /sources` re-validates,
+  creates the source, and runs an **inline first-scrape** (dedup-inserts its items) so a
+  freshly added source isn't empty until the next daily scrape. `detect_type(url)` is one
+  pure function shared by preview, create, and the scrape orchestrator.
 
 ### Scraping
 - **Daily global scrape** into a durable `items` table. Decoupled from digest cadence.
@@ -134,9 +181,19 @@ Substack Notes (short), X threads (long), video/podcast — slot in with no sche
   cursor is kept as a backstop so a *missed* cron run self-heals next day.
 - **Window** = items published in the current calendar window for due subscribers,
   joined subscriptions → feeder → sources.
+- **Assembly is split from rendering** (Slice 3): one pure `assemble_digest(user) ->
+  DigestData` engine produces the grouped/capped structure, serialized as **JSON** for the
+  in-app preview and rendered to **HTML** by the Slice 4 email job — one engine, two sinks.
+- **Preview window divergence:** the in-app preview uses a **rolling trailing window**
+  sized to the subscriber's frequency (weekly → last 7 days, monthly → last ~30) so a
+  preview rendered mid-cycle is *representative*, not sparse. The real send uses the
+  calendar-anchored window. Same engine, different window bounds.
 
 ### Filtering & capping
-- **Long items: include all** (rare, high-value).
+- **Long items: cap to top-N by recency** (`LONG_ITEMS_CAP`, default 5). (Earlier framing
+  was "include all"; a prolific essayist over a *monthly* window can pile up, so longs are
+  capped like shorts — just with a higher ceiling. A per-frequency cap is a possible later
+  refinement.)
 - **Short items: light-filter then cap** — drop Bluesky replies/reposts at scrape time;
   cap to **top-N by recency** (e.g. 3) per feeder.
 - **Per-digest safety cap** (~50 feeders, sampled if exceeded) so an email can't explode.
@@ -176,23 +233,30 @@ Substack Notes (short), X threads (long), video/podcast — slot in with no sche
 
 ```
 users
-  id · email (unique) · display_name
+  id · email (unique, lowercased) · display_name (nullable)
   digest_frequency ('weekly'|'monthly', default 'weekly')
-  digest_paused (bool) · last_digest_sent_at · last_covered_through · created_at
+  digest_paused (bool, default false)
+  verified_at (nullable)         -- NULL = pre-seeded ghost, never logged in
+  onboarded (bool, default false)-- explicit; decoupled from display_name
+  last_digest_sent_at · last_covered_through · created_at
 
 allowed_emails            -- CSV allowlist gate
-  email (unique) · name (nullable) · claimed_by_user_id (nullable)
+  id · email (unique, lowercased) · name (nullable)   -- name stores abbreviated form only
+  claimed_by_user_id (nullable FK users.id)           -- set at first verify
+  created_at
 
-magic_link_tokens
-  id · email · token_hash · expires_at · used_at · created_at
+magic_link_tokens         -- keyed by EMAIL, not user_id (user may not exist yet at request)
+  id · email · token_hash (unique) · expires_at · used_at · created_at
 
 sessions
-  id · user_id · token_hash · expires_at · created_at
+  id · user_id (FK users.id) · token_hash (unique) · expires_at · created_at
 
 sources                   -- a feeder's content source (multiple per feeder)
-  id · user_id (feeder) · type ('rss'|'bluesky')
+  id · user_id (FK users.id)   -- replaces the Slice 1 feeder_name stub
+  type ('rss'|'bluesky')
   input_url · resolved_feed_url / external_id · title
   last_checked_at · last_success_at · created_at
+  UNIQUE(user_id, input_url)   -- replaces UNIQUE(feeder_name, input_url)
   -- (status / consecutive_failures deferred with source-health handling)
 
 items                     -- scraped content (durable history)
@@ -201,9 +265,9 @@ items                     -- scraped content (durable history)
   engagement_count (default 0) · published_at · scraped_at
   UNIQUE(source_id, external_id)
 
-subscriptions             -- subscriber → feeder
-  id · subscriber_id · feeder_id · created_at
-  UNIQUE(subscriber_id, feeder_id)
+subscriptions             -- subscriber → feeder (both FK users.id; "feeder" is a role, not a table)
+  id · subscriber_id (FK users.id) · feeder_id (FK users.id) · created_at
+  UNIQUE(subscriber_id, feeder_id)   -- added in Slice 3 (migration 0003)
 ```
 
 Notes:
@@ -213,6 +277,9 @@ Notes:
   on multi-author blogs are ignored — deferred edge case).
 - `engagement_count` is stored now (Bluesky likes/reposts) but unused in v1 ranking;
   short items sort by recency for now, by traction later.
+- **Self-subscription is allowed** (`feeder_id == subscriber_id`) — a feeder can follow
+  themselves to dogfood "what goes out from me" in their own digest preview. The Slice 4
+  send will therefore also email a self-subscriber their own posts; they can unsubscribe.
 
 ---
 
@@ -243,10 +310,15 @@ a runnable milestone.
 1. **Slice 1 — Ingestion spike** (backend only, SQLite, hardcoded sources): scrape →
    deduped `items` → rendered HTML digest you eyeball. De-risks the core, locks the
    `items` model. **Full spec:** [`slice-1-ingestion-spike.md`](./slice-1-ingestion-spike.md).
-2. **Slice 2 — Auth + allowlist** — CSV import, magic-link send/verify, sessions,
-   display name; swap the spike's `feeder_name` stub for the real `user_id` FK.
-3. **Slice 3 — Multi-user CRUD + API** — real add-source (reusing the spike's feed
-   validator), subscriptions, `ILIKE` search, calendar windowing + capping, in-app preview.
+2. **Slice 2 — Auth + allowlist** — CSV import (with auto pre-seeding), magic-link
+   request/verify, sessions, onboarding; swap the spike's `feeder_name` stub for the real
+   `user_id` FK. Email is a console sink here (Resend lands in Slice 4); no frontend yet
+   (Slice 5) — exercised via curl/pytest. **Full spec:** [`slice-2-auth.md`](./slice-2-auth.md).
+3. **Slice 3 — Multi-user CRUD + API** — real add-source (preview + create with inline
+   first-scrape, reusing the spike's feed validator), subscriptions, `ILIKE` search,
+   windowing + capping, in-app preview. Ingestion is resurrected on `user_id` (manual
+   `cli scrape`); the cron wrapper + actual send stay Slice 4. API-only — curl/pytest.
+   **Full spec:** [`slice-3-crud.md`](./slice-3-crud.md).
 4. **Slice 4 — Cron + Postgres + email** — migrate SQLite→Postgres on Railway, daily
    scrape + digest crons, Resend send, welcome sample, unsubscribe.
 5. **Slice 5 — Frontend** — the 7 screens tied together.

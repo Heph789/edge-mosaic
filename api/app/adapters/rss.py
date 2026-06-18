@@ -32,9 +32,16 @@ class FeedResolutionError(Exception):
 class RSSAdapter:
     type = "rss"
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        timeout: float = RSS_FETCH_TIMEOUT,
+        deadline_seconds: float | None = None,
+    ) -> None:
+        # deadline_seconds bounds *total* resolution wall-clock (interactive add); the
+        # background scrape leaves it None and relies on the per-request timeout only.
+        self._deadline_seconds = deadline_seconds
         self._client = httpx.Client(
-            timeout=RSS_FETCH_TIMEOUT,
+            timeout=timeout,
             follow_redirects=True,
             headers={"User-Agent": USER_AGENT},
         )
@@ -52,12 +59,24 @@ class RSSAdapter:
     # -- feed resolution (Slice 1 §RSS adapter) -------------------------------
 
     def _resolve_feed(self, url: str):
+        start = time.monotonic()
+
+        def check_deadline() -> None:
+            if (
+                self._deadline_seconds is not None
+                and time.monotonic() - start > self._deadline_seconds
+            ):
+                raise FeedResolutionError(
+                    f"Feed resolution for {url!r} exceeded {self._deadline_seconds}s"
+                )
+
         # 1. Already a feed?
         parsed = self._try_parse(url)
         if parsed is not None:
             return url, parsed
 
         # 2. HTML autodiscovery via <link rel="alternate" ...>.
+        check_deadline()
         html = self._get_text(url)
         if html:
             discovered = self._discover_in_html(html, url)
@@ -69,6 +88,7 @@ class RSSAdapter:
         # 3. Common well-known paths.
         base = self._base_url(url)
         for path in COMMON_FEED_PATHS:
+            check_deadline()
             candidate = urljoin(base, path)
             parsed = self._try_parse(candidate)
             if parsed is not None:

@@ -1,6 +1,7 @@
-"""Scrape orchestration: upsert sources → fetch each → dedup-insert items.
+"""Scrape orchestration: fetch each real source → dedup-insert items.
 
 Per-source try/except is the whole point — one dead source must not kill the run.
+Slice 3: sources are real `user_id`-owned rows (no more hardcoded list).
 """
 
 from __future__ import annotations
@@ -12,12 +13,11 @@ from sqlalchemy.orm import Session
 
 from .adapters import get_adapter
 from .models import Item, Source, utcnow
-from .sources import upsert_sources
 
 
 @dataclass
 class SourceResult:
-    feeder_name: str
+    source_id: int | None
     input_url: str
     ok: bool
     new_items: int = 0
@@ -26,18 +26,15 @@ class SourceResult:
 
 
 def scrape(session: Session) -> list[SourceResult]:
-    sources = upsert_sources(session)
-    results: list[SourceResult] = []
-
-    for source in sources:
-        results.append(_scrape_one(session, source))
-
-    return results
+    """Global scrape over every source. (Slice 4 wraps this in the daily cron.)"""
+    sources = list(session.scalars(select(Source)).all())
+    return [scrape_source(session, source) for source in sources]
 
 
-def _scrape_one(session: Session, source: Source) -> SourceResult:
+def scrape_source(session: Session, source: Source) -> SourceResult:
+    """Fetch one source and dedup-insert its items. Also the inline first-scrape on add."""
     source.last_checked_at = utcnow()
-    result = SourceResult(feeder_name=source.feeder_name, input_url=source.input_url, ok=False)
+    result = SourceResult(source_id=source.id, input_url=source.input_url, ok=False)
 
     try:
         adapter = get_adapter(source.type)

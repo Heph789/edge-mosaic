@@ -1,7 +1,7 @@
-"""SQLAlchemy 2.0 typed models — only the two tables Slice 1 needs.
+"""SQLAlchemy 2.0 typed models.
 
 Kept dialect-agnostic (plain string columns, no native enums) so these models and the
-Alembic migration carry forward unchanged to Postgres in Slice 4.
+Alembic migrations carry forward unchanged to Postgres in Slice 4.
 """
 
 from __future__ import annotations
@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from sqlalchemy import (
+    Boolean,
     DateTime,
     ForeignKey,
     Integer,
@@ -31,17 +32,119 @@ class Base(DeclarativeBase):
     pass
 
 
+class User(Base):
+    """An account — both feeder and subscriber (one unified account, §2).
+
+    Three independent states (see slice-2-auth.md):
+      exists    — this row is present (pre-seeded at import OR lazy at verify)
+      verified  — `verified_at` set: proven inbox >= once. NULL = pre-seeded ghost.
+      onboarded — explicit flag, decoupled from display_name.
+    """
+
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String, nullable=False, unique=True)  # lowercased
+    display_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    digest_frequency: Mapped[str] = mapped_column(
+        String, nullable=False, default="weekly"
+    )  # 'weekly' | 'monthly'
+    digest_paused: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    onboarded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    last_digest_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_covered_through: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+
+
+class AllowedEmail(Base):
+    """CSV allowlist gate — source of truth for 'valid edge email' (§2)."""
+
+    __tablename__ = "allowed_emails"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String, nullable=False, unique=True)  # lowercased
+    # Abbreviated form only ("Jane S."); full surname is never persisted.
+    name: Mapped[str | None] = mapped_column(String, nullable=True)
+    claimed_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+
+
+class MagicLinkToken(Base):
+    """Single-use login token. Keyed by EMAIL — the user may not exist yet at request."""
+
+    __tablename__ = "magic_link_tokens"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String, nullable=False)  # lowercased
+    token_hash: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    used_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+
+
+class Session(Base):
+    """Opaque server-side session token (§2) — revocable, no JWT."""
+
+    __tablename__ = "sessions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+
+
+class Subscription(Base):
+    """A subscriber following a feeder. Both ids are users — 'feeder' is a role, not a
+    table. Self-subscription (subscriber_id == feeder_id) is allowed (digest dogfooding).
+    """
+
+    __tablename__ = "subscriptions"
+    __table_args__ = (
+        UniqueConstraint("subscriber_id", "feeder_id", name="uq_subscription_pair"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    subscriber_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    feeder_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+
+
 class Source(Base):
     """A feeder's content source. Multiple per feeder allowed."""
 
     __tablename__ = "sources"
     __table_args__ = (
-        UniqueConstraint("feeder_name", "input_url", name="uq_source_feeder_input"),
+        UniqueConstraint("user_id", "input_url", name="uq_source_user_input"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    # Temporary stub — becomes a user_id FK in Slice 2.
-    feeder_name: Mapped[str] = mapped_column(String, nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     type: Mapped[str] = mapped_column(String, nullable=False)  # 'rss' | 'bluesky'
     input_url: Mapped[str] = mapped_column(String, nullable=False)
     resolved_feed_url: Mapped[str | None] = mapped_column(String, nullable=True)

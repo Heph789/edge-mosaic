@@ -13,3 +13,6 @@ build/
 # Spike data + generated output
 api/data/
 *.db
+
+# temporary csv input
+api/input/

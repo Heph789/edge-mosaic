@@ -1,44 +1,99 @@
-"""Hardcoded real sources for the spike + a dialect-agnostic upsert.
+"""Source type detection + add-time validation (Slice 3).
 
-Deliberately select-then-insert (no SQLite `on_conflict_*`) so the dedup logic
-survives the move to Postgres.
+`detect_type` is the single source of truth for "what kind of source is this URL",
+reused by the preview endpoint, the create endpoint, and the scrape orchestrator.
 """
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+from dataclasses import dataclass
+from datetime import datetime
+from urllib.parse import urlparse
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .adapters import NormalizedItem
+from .adapters.bluesky import BlueskyAdapter
+from .adapters.rss import RSSAdapter
+from .config import ADD_SOURCE_DEADLINE, ADD_SOURCE_TIMEOUT
 from .models import Source
 
-# A couple Substacks (custom domains), feed-having blogs, and a Bluesky handle.
-HARDCODED_SOURCES: list[dict[str, str]] = [
-    {"feeder_name": "Scott Alexander", "type": "rss", "url": "https://www.astralcodexten.com"},
-    {"feeder_name": "Casey Newton", "type": "rss", "url": "https://www.platformer.news"},
-    {"feeder_name": "Simon Willison", "type": "rss", "url": "https://simonwillison.net/"},
-    # Same feeder, second source — exercises grouping a blog + Bluesky under one feeder.
-    {"feeder_name": "Simon Willison", "type": "bluesky", "url": "@simonwillison.net"},
-    {"feeder_name": "Julia Evans", "type": "rss", "url": "https://jvns.ca"},
-    {"feeder_name": "Bluesky Team", "type": "bluesky", "url": "@bsky.app"},
-]
+# Hosts we deliberately reject for now (X adapter is deferred — see mvp-plan Deferred).
+REJECTED_HOSTS = {"x.com", "twitter.com", "mobile.twitter.com"}
 
 
-def upsert_sources(session: Session) -> list[Source]:
-    """Ensure every hardcoded source exists, keyed on (feeder_name, input_url)."""
-    for spec in HARDCODED_SOURCES:
-        existing = session.scalar(
-            select(Source).where(
-                Source.feeder_name == spec["feeder_name"],
-                Source.input_url == spec["url"],
-            )
-        )
-        if existing is None:
-            session.add(
-                Source(
-                    feeder_name=spec["feeder_name"],
-                    type=spec["type"],
-                    input_url=spec["url"],
-                )
-            )
-    session.commit()
-    return list(session.scalars(select(Source)).all())
+class SourceRejected(Exception):
+    """The URL is a platform we don't support yet (e.g. X / Twitter)."""
+
+
+def detect_type(url: str) -> str:
+    """'rss' | 'bluesky'. Raises SourceRejected for deferred platforms."""
+    raw = url.strip()
+    if raw.startswith("@"):
+        return "bluesky"  # a bare @handle is always Bluesky
+
+    host = (urlparse(raw if "://" in raw else f"https://{raw}").hostname or "").lower()
+    host = host.removeprefix("www.")
+
+    if host in REJECTED_HOSTS:
+        raise SourceRejected("X / Twitter sources are coming soon.")
+    if host == "bsky.app":
+        return "bluesky"
+    return "rss"  # Substack (/feed) + general RSS autodiscovery handled by the resolver
+
+
+@dataclass
+class SourcePreview:
+    type: str
+    resolved_url: str | None
+    title: str | None
+    found_count: int
+    latest_title: str | None
+    latest_published_at: datetime | None
+
+
+def _adapter_for(source_type: str):
+    """Interactive adapter instances — tight timeout + overall deadline (Slice 3)."""
+    if source_type == "rss":
+        return RSSAdapter(timeout=ADD_SOURCE_TIMEOUT, deadline_seconds=ADD_SOURCE_DEADLINE)
+    if source_type == "bluesky":
+        return BlueskyAdapter()
+    raise ValueError(f"Unknown source type: {source_type!r}")
+
+
+def validate_source(url: str) -> tuple[str, Source, list[NormalizedItem]]:
+    """Detect + fetch against a *transient* Source (no DB write). Raises on bad feeds."""
+    source_type = detect_type(url)
+    transient = Source(type=source_type, input_url=url)  # not added to any session
+    items = _adapter_for(source_type).fetch(transient)
+    return source_type, transient, items
+
+
+def preview_source(url: str) -> SourcePreview:
+    """Validate a URL and summarize what was found — the §3 confirm step. No writes."""
+    source_type, transient, items = validate_source(url)
+    latest = max(items, key=lambda i: i.published_at) if items else None
+    return SourcePreview(
+        type=source_type,
+        resolved_url=transient.resolved_feed_url or transient.input_url,
+        title=transient.title,
+        found_count=len(items),
+        latest_title=latest.title if latest else None,
+        latest_published_at=latest.published_at if latest else None,
+    )
+
+
+def platforms_for(session: Session, user_ids: Iterable[int]) -> dict[int, list[str]]:
+    """{user_id: sorted distinct source types}. Feeders with no sources are absent."""
+    ids = list(user_ids)
+    out: dict[int, set[str]] = {}
+    if not ids:
+        return {}
+    rows = session.execute(
+        select(Source.user_id, Source.type).where(Source.user_id.in_(ids)).distinct()
+    ).all()
+    for uid, stype in rows:
+        out.setdefault(uid, set()).add(stype)
+    return {uid: sorted(types) for uid, types in out.items()}
