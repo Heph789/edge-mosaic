@@ -4,6 +4,7 @@ source validator in Slice 3."""
 from __future__ import annotations
 
 import hashlib
+import re
 import time
 from datetime import datetime, timezone
 from urllib.parse import urljoin, urlparse
@@ -24,6 +25,14 @@ FEED_LINK_TYPES = {
     "text/xml",
 }
 
+# Platforms whose "page" is just a directory in front of a real RSS feed.
+_APPLE_PODCAST_RE = re.compile(r"podcasts\.apple\.com/.*?/id(\d+)")
+_YT_CHANNEL_ID_RE = re.compile(r"youtube\.com/channel/(UC[0-9A-Za-z_-]{22})")
+_YT_OWN_ID_RES = (
+    re.compile(r'"externalId":"(UC[0-9A-Za-z_-]{22})"'),
+    re.compile(r'<link rel="canonical" href="https://www\.youtube\.com/channel/(UC[0-9A-Za-z_-]{22})"'),
+)
+
 
 class FeedResolutionError(Exception):
     """Raised when no usable feed can be found for a source URL."""
@@ -42,12 +51,70 @@ class RSSAdapter:
     # -- public ---------------------------------------------------------------
 
     def fetch(self, source: Source) -> list[NormalizedItem]:
-        feed_url, parsed = self._resolve_feed(source.input_url)
+        # Podcasts/YouTube are RSS underneath a directory page: resolve those directly
+        # and force kind='long' (a media episode is real content regardless of how long
+        # its blurb is, so length-classification doesn't apply).
+        platform_feed, force_kind = self._platform_feed(source.input_url)
+        if platform_feed is not None:
+            parsed = self._try_parse(platform_feed)
+            if parsed is None:
+                raise FeedResolutionError(f"Resolved feed did not parse: {platform_feed!r}")
+            feed_url = platform_feed
+        else:
+            feed_url, parsed = self._resolve_feed(source.input_url)
+            force_kind = None
+
         source.resolved_feed_url = feed_url
         title = parsed.feed.get("title")
         if title:
             source.title = title.strip()
-        return [self._normalize(entry) for entry in parsed.entries]
+        return [self._normalize(entry, force_kind) for entry in parsed.entries]
+
+    # -- platform resolution (directory page → real feed) ---------------------
+
+    def _platform_feed(self, url: str) -> tuple[str | None, str | None]:
+        """Resolve a known platform URL to its feed + forced kind, else (None, None)."""
+        apple = _APPLE_PODCAST_RE.search(url)
+        if apple:
+            return self._itunes_feed(apple.group(1)), "long"
+        if "youtube.com" in url or "youtu.be" in url:
+            return self._youtube_feed(url), "long"
+        return None, None
+
+    def _itunes_feed(self, podcast_id: str) -> str:
+        """Apple Podcasts id → real RSS feed via the iTunes Lookup API."""
+        try:
+            resp = self._client.get(
+                "https://itunes.apple.com/lookup", params={"id": podcast_id}
+            )
+            resp.raise_for_status()
+            results = resp.json().get("results") or []
+        except (httpx.HTTPError, ValueError) as exc:
+            raise FeedResolutionError(f"iTunes lookup failed for id {podcast_id}") from exc
+        feed_url = results[0].get("feedUrl") if results else None
+        if not feed_url:
+            raise FeedResolutionError(f"No feedUrl for Apple podcast id {podcast_id}")
+        return feed_url
+
+    def _youtube_feed(self, url: str) -> str:
+        """YouTube channel/handle URL → channel RSS feed."""
+        direct = _YT_CHANNEL_ID_RE.search(url)
+        channel_id = direct.group(1) if direct else self._youtube_channel_id(url)
+        if not channel_id:
+            raise FeedResolutionError(f"Could not find a YouTube channel id for {url!r}")
+        return f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
+
+    def _youtube_channel_id(self, url: str) -> str | None:
+        # The channel's OWN id is in externalId/canonical — not the first "channelId"
+        # in the page, which is often a recommended channel.
+        html = self._get_text(url)
+        if not html:
+            return None
+        for pattern in _YT_OWN_ID_RES:
+            match = pattern.search(html)
+            if match:
+                return match.group(1)
+        return None
 
     # -- feed resolution (Slice 1 §RSS adapter) -------------------------------
 
@@ -101,7 +168,7 @@ class RSSAdapter:
 
     # -- entry normalization --------------------------------------------------
 
-    def _normalize(self, entry) -> NormalizedItem:
+    def _normalize(self, entry, force_kind: str | None = None) -> NormalizedItem:
         link = entry.get("link") or ""
         title = (entry.get("title") or "").strip() or None
 
@@ -123,7 +190,7 @@ class RSSAdapter:
 
         return NormalizedItem(
             external_id=external_id,
-            kind=classify_kind(stripped_body),
+            kind=force_kind or classify_kind(stripped_body),
             title=title,
             url=link,
             text=None,

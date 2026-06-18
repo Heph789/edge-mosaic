@@ -20,6 +20,10 @@ HARDCODED_SOURCES: list[dict[str, str]] = [
     {"feeder_name": "Simon Willison", "type": "bluesky", "url": "@simonwillison.net"},
     {"feeder_name": "Julia Evans", "type": "rss", "url": "https://jvns.ca"},
     {"feeder_name": "Bluesky Team", "type": "bluesky", "url": "@bsky.app"},
+    # Podcast + YouTube — both are RSS underneath a directory page (the RSS adapter
+    # resolves Apple Podcasts via the iTunes Lookup API and YouTube via the channel feed).
+    {"feeder_name": "Amanda Cassatt", "type": "rss", "url": "https://podcasts.apple.com/us/podcast/endgame-with-amanda-cassatt/id1801809440"},
+    {"feeder_name": "Bankless", "type": "rss", "url": "https://www.youtube.com/@Bankless"},
 ]
 
 
