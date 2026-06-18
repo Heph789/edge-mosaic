@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
 from jinja2 import Environment, FileSystemLoader
 from sqlalchemy import select
@@ -36,33 +37,81 @@ def _build_env() -> Environment:
     return env
 
 
+def _published(item: Item) -> datetime:
+    return item.published_at
+
+
+def source_label(source: Source) -> str:
+    """Subheading for a source: its pulled publication name (sources.title), 'Bluesky'
+    for Bluesky, falling back to the host if a feed had no title."""
+    if source.type == "bluesky":
+        return "Bluesky"
+    if source.title:
+        return source.title
+    host = urlparse(source.resolved_feed_url or source.input_url).netloc
+    return host or source.input_url
+
+
 def build_feeders(session: Session) -> list[dict]:
-    """Group last-window items by feeder, cap shorts, order everything (Slice 1 §Render)."""
+    """Group last-window items by feeder → by source, capping per feeder (Slice 1 §Render).
+
+    Caps stay per-feeder (≤N long, ≤3 short across all of a feeder's sources); the kept
+    items are then partitioned by source for display, with each source's pulled title as a
+    subheading and long-form sources listed above short-form ones.
+    """
     cutoff = datetime.now(timezone.utc) - timedelta(days=DIGEST_WINDOW_DAYS)
     rows = session.execute(
-        select(Item, Source.feeder_name)
+        select(Item, Source)
         .join(Source, Item.source_id == Source.id)
         .where(Item.published_at >= cutoff)
     ).all()
 
-    grouped: dict[str, dict[str, list[Item]]] = {}
-    for item, feeder_name in rows:
-        bucket = grouped.setdefault(feeder_name, {"long": [], "short": []})
-        bucket.setdefault(item.kind, []).append(item)
+    # feeder_name -> source_id -> {"source", "long"[], "short"[]}
+    grouped: dict[str, dict[int, dict]] = {}
+    for item, source in rows:
+        by_source = grouped.setdefault(source.feeder_name, {})
+        bucket = by_source.setdefault(
+            source.id, {"source": source, "long": [], "short": []}
+        )
+        bucket[item.kind].append(item)
 
     feeders: list[dict] = []
-    for name, buckets in grouped.items():
-        longs = sorted(buckets.get("long", []), key=lambda i: i.published_at, reverse=True)
-        longs = longs[:LONG_ITEMS_CAP]  # cap longs to most-recent N (no quality signal in RSS)
-        shorts = sorted(buckets.get("short", []), key=lambda i: i.published_at, reverse=True)
-        shorts = shorts[:SHORT_ITEMS_CAP]  # cap shorts to top-N by recency
-        recency = [i.published_at for i in (*longs, *shorts)]
+    for name, by_source in grouped.items():
+        # Per-feeder caps applied across all the feeder's sources.
+        all_long = [i for b in by_source.values() for i in b["long"]]
+        all_short = [i for b in by_source.values() for i in b["short"]]
+        keep_long = {i.id for i in sorted(all_long, key=_published, reverse=True)[:LONG_ITEMS_CAP]}
+        keep_short = {i.id for i in sorted(all_short, key=_published, reverse=True)[:SHORT_ITEMS_CAP]}
+
+        source_blocks: list[dict] = []
+        for bucket in by_source.values():
+            longs = sorted(
+                (i for i in bucket["long"] if i.id in keep_long), key=_published, reverse=True
+            )
+            shorts = sorted(
+                (i for i in bucket["short"] if i.id in keep_short), key=_published, reverse=True
+            )
+            if not longs and not shorts:
+                continue
+            source_blocks.append(
+                {
+                    "label": source_label(bucket["source"]),
+                    "longs": longs,
+                    "shorts": shorts,
+                    "has_long": bool(longs),
+                    "recency": max(_published(i) for i in (*longs, *shorts)),
+                }
+            )
+
+        if not source_blocks:
+            continue
+        # Long-form sources above short-form; ties broken by recency.
+        source_blocks.sort(key=lambda s: (s["has_long"], s["recency"]), reverse=True)
         feeders.append(
             {
                 "name": name,
-                "longs": longs,  # all long items, recency-ordered
-                "shorts": shorts,
-                "last_activity": max(recency) if recency else cutoff,
+                "sources": source_blocks,
+                "last_activity": max(s["recency"] for s in source_blocks),
             }
         )
 
