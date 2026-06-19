@@ -28,6 +28,14 @@
   .short a { color: #0b5cad; text-decoration: none; }
   .short a:hover { text-decoration: underline; }
   .empty { color: #999; font-style: italic; }
+  /* Compact format: one line per feeder when many are active. */
+  .compact { list-style: none; padding: 0; margin: 0; }
+  .compact-row { padding: 10px 0; border-bottom: 1px solid #eee; font-size: 14px; }
+  .compact-row .who { font-weight: 600; color: #1a1a1a; }
+  .compact-row .who::after { content: " — "; color: #bbb; font-weight: 400; }
+  .compact-row a { color: #0b5cad; text-decoration: none; }
+  .compact-row a:hover { text-decoration: underline; }
+  .compact-row .date { color: #999; font-size: 12px; }
   .quiet { border-top: 1px solid #e5e5e5; margin-top: 32px; padding-top: 20px; color: #999; }
   .quiet h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .04em; margin: 0 0 8px; }
   .quiet p { font-size: 13px; margin: 0; }
@@ -44,8 +52,21 @@
 
 {% if not feeders %}
   <p class="empty">No items in the last {{ window_days }} days. Run a scrape first.</p>
-{% endif %}
-
+{% elif compact %}
+{# Many active feeders: collapse each to one line with its single representative item. #}
+<ul class="compact">
+  {% for feeder in feeders %}
+  {% set item = feeder.selected %}
+  <li class="compact-row">
+    <span class="who">{{ feeder.name }}</span>
+    {# Long/RSS items carry a title; Bluesky shorts carry text; title-less RSS (e.g. a
+       Mastodon toot) carries only an excerpt; bare URL is the last resort. #}
+    <a href="{{ item.url }}">{{ (item.title or item.text or item.excerpt or item.url) | truncate_words(short_text_chars) }}</a>
+    <span class="date">· {{ item.published_at.strftime("%b %d") }}</span>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
 {% for feeder in feeders %}
 <section class="feeder">
   <h2>From {{ feeder.name }}</h2>
@@ -77,6 +98,7 @@
   {% endfor %}
 </section>
 {% endfor %}
+{% endif %}
 
 {% if quiet_feeders %}
 <section class="quiet">

@@ -14,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .config import (
+    COMPACT_MODE_FEEDER_THRESHOLD,
     DIGEST_OUTPUT_PATH,
     DIGEST_WINDOW_DAYS,
     LONG_ITEMS_CAP,
@@ -83,6 +84,10 @@ def build_feeders(session: Session) -> list[dict]:
         keep_long = {i.id for i in sorted(all_long, key=_published, reverse=True)[:LONG_ITEMS_CAP]}
         keep_short = {i.id for i in sorted(all_short, key=_published, reverse=True)[:SHORT_ITEMS_CAP]}
 
+        # Single representative item for the compact format: most-recent long, falling back
+        # to most-recent short only if the feeder has no long (kind as significance proxy).
+        selected = max(all_long or all_short, key=_published)
+
         source_blocks: list[dict] = []
         for bucket in by_source.values():
             longs = sorted(
@@ -111,6 +116,7 @@ def build_feeders(session: Session) -> list[dict]:
             {
                 "name": name,
                 "sources": source_blocks,
+                "selected": selected,
                 "last_activity": max(s["recency"] for s in source_blocks),
             }
         )
@@ -129,11 +135,15 @@ def render_digest(session: Session, output_path: Path | None = None) -> Path:
     all_feeders = set(session.scalars(select(Source.feeder_name)).all())
     quiet_feeders = sorted(all_feeders - active)
 
+    # Hard switch: many active feeders → one line per feeder, else the spacious format.
+    compact = len(feeders) >= COMPACT_MODE_FEEDER_THRESHOLD
+
     env = _build_env()
     template = env.get_template("digest.html.j2")
     html = template.render(
         feeders=feeders,
         quiet_feeders=quiet_feeders,
+        compact=compact,
         generated_at=datetime.now(timezone.utc),
         window_days=DIGEST_WINDOW_DAYS,
         short_text_chars=SHORT_TEXT_RENDER_CHARS,

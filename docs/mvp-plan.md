@@ -98,6 +98,12 @@ sends are recurring background jobs, not request/response.
   feeds immediately rather than storing a silently-broken source.
 - **Confirm** to the feeder: "✅ Found N recent posts, latest: '<title>' — is this right?"
 - **Multiple sources per feeder** allowed (e.g. their Substack *and* their Bluesky).
+- **Publication vs. profile URLs (UI nudge):** a `substack.com/@handle` URL points at a
+  *person*, not a publication feed, so `/feed` resolution 404s (seen live with
+  `substack.com/@pragmaticengineer`). The add-source UI should detect this shape and steer
+  the feeder to paste their **publication** URL (`<name>.substack.com`) instead of failing
+  silently. (Longer term that same profile handle is the key a Substack **Notes** adapter
+  would use — see deferred — so detect-and-nudge now, branch-by-type later.)
 
 ### Scraping
 - **Daily global scrape** into a durable `items` table. Decoupled from digest cadence.
@@ -149,6 +155,29 @@ Substack Notes (short), X threads (long), video/podcast — slot in with no sche
 - **No AI summaries.** The author's RSS-provided excerpt *is* allowed (author-written,
   not AI) and is shown for long items to aid the click decision. Users must click
   through for the actual content.
+
+### Density formats (spacious vs. compact)
+
+The presentation above is the **spacious** format and assumes a handful of active feeders.
+A subscriber following many people who all post in a window would get a wall of excerpts,
+so the digest **hard-switches to a compact format** above a threshold:
+
+- **Trigger:** the *active-feeder count* (feeders with ≥1 item in the window), **not**
+  subscription count — a user following 40 mostly-dormant feeders still gets the spacious
+  format. One mode for the whole email, so it stays visually coherent. Threshold is a
+  single tunable knob (`COMPACT_MODE_FEEDER_THRESHOLD`, starts at 10).
+- **Compact layout:** **one line per feeder**, each carrying a single representative item
+  (`Name — <title|text> · <date>`, the line linking to the item). The other items in the
+  window are dropped silently for now — a `+N more` affordance is a later add once the
+  in-app digest view (screen #7) is a place to click through to.
+- **Which item represents a feeder:** **most-recent `long`; fall back to most-recent
+  `short` only if the feeder has no long** in the window — reusing `kind` (§4) as the
+  significance proxy so an essay always beats a throwaway reply. (In the spacious format
+  selection barely matters because everything is shown; in compact it *is* the product.)
+- **Relation to sampling:** this is a *presentation* tier, orthogonal to the deferred
+  serendipity/sampling work below — formatting decides how densely to show what made the
+  cut; sampling decides *which* feeders make the cut when there are too many even for one
+  line each. A genuinely huge digest eventually wants both.
 
 ### Send mechanics
 - **One personalized email per due subscriber** (not a broadcast).
@@ -271,13 +300,30 @@ Consciously punted from the MVP, roughly in priority order:
   (low approval rate, weeks–months) — there is *no* product for reading individuals'
   personal posts, which is what the Edge community actually publishes. Realistic
   post-MVP shape if pursued: member-authorized OAuth, not a URL resolver.
+- **YouTube feed hardening** — channel→feed resolution works, but the public
+  `feeds/videos.xml?channel_id=…` fetch is **throttled/blocked at scale**: in a 30-feeder
+  live run, 9 of 10 YouTube sources came back as a non-feed consent/block page while one
+  identical-shape URL succeeded — intermittent anti-bot, not a code bug. Options:
+  retry-with-backoff, a browser-like User-Agent + consent cookie, or resolve via
+  `yt-dlp` / the **YouTube Data API** instead of the public XML feed.
+- **Substack Notes ingestion (short-form)** — publication RSS (`/feed`) carries **posts
+  only**; Notes (Substack's short-form, Twitter-like feed) appear in *no* RSS. Capturing
+  them needs a dedicated adapter producing `kind='short'` items — directly analogous to
+  the Bluesky adapter — via one of: the **undocumented JSON endpoint**
+  (`<pub>.substack.com/api/v1/notes` / profile reader feed; some reads are public/no-auth
+  but it's unstable and ToS-grey), Substack's newer **official Developer API** (verify
+  whether it exposes *reading other users'* Notes vs. write/app-integration only), or a
+  **third-party scraper** (e.g. Apify, paid). Keys on the `substack.com/@handle` profile
+  URL the add-source flow currently rejects (§3) — same thread, opposite end.
 - **Non-feed personal/company websites** — true HTML scraping (no RSS).
 - **Source-health handling** — track consecutive failures, flag broken sources in the
   feeder dashboard, optionally email feeders (options a/b from the design discussion;
   MVP punts with "c": dead sources silently return nothing).
 - **Per-digest serendipity / sampling** — real design for subscribers following
   hundreds of feeders (random/exploration rather than mechanical truncation). May
-  partly self-resolve if few people publish.
+  partly self-resolve if few people publish. *Note:* the compact density format
+  (§5 → Density formats) raises how many feeders a digest can show before sampling is
+  needed, but is orthogonal to it — formatting ≠ which feeders make the cut.
 - **"Long-form only" subscriber preference** — trivial given the `kind` axis.
 - **Engagement-based ranking of short items** — flip sort from recency to traction.
 - **Per-feeder digest priority**, **per-medium subscription granularity** (subscribe to
