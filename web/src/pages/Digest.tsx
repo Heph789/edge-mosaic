@@ -91,15 +91,34 @@ export function Digest() {
           <p className="muted">Loading preview…</p>
         ) : preview.isError ? (
           <p className="error">Couldn't load the preview.</p>
-        ) : preview.data && preview.data.feeders.length === 0 ? (
+        ) : !preview.data ? null : preview.data.feeders.length === 0 &&
+          preview.data.quiet_feeders.length === 0 ? (
           <p className="muted">
             Nothing to preview yet — follow some people with recent posts.
           </p>
         ) : (
           <div className="digest-preview">
-            {preview.data?.feeders.map((f) => (
-              <FeederBlock key={f.feeder_id} feeder={f} />
-            ))}
+            {/* Mirrors the email: compact (one line per feeder) once many are active,
+                else the spacious group-by-source layout. */}
+            {preview.data.compact ? (
+              <ul className="compact-list">
+                {preview.data.feeders.map((f) => (
+                  <CompactRow key={f.feeder_id} feeder={f} />
+                ))}
+              </ul>
+            ) : (
+              preview.data.feeders.map((f) => (
+                <FeederBlock key={f.feeder_id} feeder={f} />
+              ))
+            )}
+            {preview.data.quiet_feeders.length > 0 && (
+              <div className="quiet-block">
+                <div className="muted small">No updates</div>
+                <p className="muted small">
+                  Nothing this period from {preview.data.quiet_feeders.join(", ")}.
+                </p>
+              </div>
+            )}
           </div>
         )}
       </section>
@@ -107,30 +126,47 @@ export function Digest() {
   );
 }
 
-// Mirrors the email layout. All scraped strings render as text (React escapes by
-// default) — NEVER dangerouslySetInnerHTML on feed/Bluesky content (XSS rule, §2).
+// Mirrors the email layout: feeder → per-source blocks (long-form sources first). All
+// scraped strings render as text (React escapes by default) — NEVER
+// dangerouslySetInnerHTML on feed/Bluesky content (XSS rule, §2).
 function FeederBlock({ feeder }: { feeder: DigestFeeder }) {
   return (
     <div className="feeder-block">
       <h3>From {feeder.display_name ?? "Unnamed"}</h3>
-      {feeder.longs.map((item, i) => (
-        <LongItem key={`l-${i}`} item={item} />
-      ))}
-      {feeder.shorts.length > 0 && (
-        <div className="shorts">
-          <div className="muted small">Also posted</div>
-          <ul className="shorts-list">
-            {feeder.shorts.map((item, i) => (
-              <li key={`s-${i}`}>
-                <a href={item.url} target="_blank" rel="noreferrer noopener">
-                  {shortText(item)}
-                </a>
-              </li>
-            ))}
-          </ul>
+      {feeder.sources.map((source, si) => (
+        <div className="source-block" key={`src-${si}`}>
+          <div className="source-label">{source.label}</div>
+          {source.longs.map((item, i) => (
+            <LongItem key={`l-${i}`} item={item} />
+          ))}
+          {source.shorts.length > 0 && (
+            <ul className="shorts-list">
+              {source.shorts.map((item, i) => (
+                <li key={`s-${i}`}>
+                  <a href={item.url} target="_blank" rel="noreferrer noopener">
+                    {shortText(item)}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
-      )}
+      ))}
     </div>
+  );
+}
+
+// Compact format: one line per feeder, showing its single representative item.
+function CompactRow({ feeder }: { feeder: DigestFeeder }) {
+  const item = feeder.selected;
+  const label = item.title ?? item.text ?? item.excerpt ?? item.url;
+  return (
+    <li className="compact-row">
+      <span className="compact-who">{feeder.display_name ?? "Unnamed"}</span>
+      <a href={item.url} target="_blank" rel="noreferrer noopener">
+        {label.length > 100 ? `${label.slice(0, 100)}…` : label}
+      </a>
+    </li>
   );
 }
 

@@ -58,6 +58,11 @@ DIGEST_FEEDER_CAP = 50
 EXCERPT_MAX_CHARS = 200
 SHORT_TEXT_RENDER_CHARS = 100
 
+# Compact digest: once this many feeders have window activity, the spacious format (full
+# excerpts, ≤5 long + ≤3 short each) becomes a wall, so the whole digest hard-switches to
+# one line per feeder — a single representative item each (mvp-plan §5). Tune against data.
+COMPACT_MODE_FEEDER_THRESHOLD = 10
+
 # kind classification for RSS (no post-type/engagement signal exists — length is the
 # only proxy). Body in [MIN, MAX] chars → 'short'; outside → 'long'. The MIN floor keeps
 # truncated/paywalled stubs (e.g. a 9-char excerpt of a real essay) classified 'long'.

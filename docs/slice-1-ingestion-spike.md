@@ -95,12 +95,24 @@ Wrap each source's fetch in try/except so one dead source can't kill the run.
   of the real digest email template. (Console text optional as a quick secondary.)
 - **What:** all `items` from the **last ~30 days, grouped by `feeder_name`** (no
   subscription filtering — that's Slice 3).
+- **Within each feeder, group items by source** under a source subheading, so every
+  link is attributed to where it came from:
+  - Subheading = the source's **publication name** (`sources.title`); for Bluesky use
+    `"Bluesky"`; fall back to platform/domain if a feed has no title.
+  - **Long-form sources listed above short-form** sources within the feeder.
+  ```
+  From John
+    Astral Codex Ten                 ← source subheading (sources.title)
+      • <long post title> — <excerpt>
+      • <long post title> — <excerpt>
+    Bluesky
+      • <short post text…>
+  ```
 - **Capping (the real behavior, so you judge it for real):**
   - **All long items** (ordered by recency).
   - **Short capped to top-3 by recency** per feeder.
-  - Long **headlined above** short; per long item show title + excerpt + link; per short
-    item show ~100-char text + link.
-  - Feeders ordered by most-recent-activity; within a feeder, long-then-short.
+  - Per long item show title + excerpt + link; per short item show ~100-char text + link.
+  - Feeders ordered by most-recent-activity.
 
 ## Definition of done
 

@@ -80,7 +80,9 @@ def send_one(db: Session, user: User, anchor: date) -> bool | None:
             headers=_list_unsubscribe_headers(user),
         )
 
-    item_count = sum(len(f.longs) + len(f.shorts) for f in data.feeders)
+    item_count = sum(
+        len(s.longs) + len(s.shorts) for f in data.feeders for s in f.sources
+    )
     db.add(
         SentDigest(
             subscriber_id=user.id,

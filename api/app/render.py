@@ -1,7 +1,8 @@
 """Render a `DigestData` (from the assembly engine) to the HTML email body (Slice 4).
 
 The same `assemble_digest` output that feeds the JSON preview is rendered here to HTML —
-one engine, two sinks.
+one engine, two sinks. Group-by-source, the compact format, and the "No updates" section
+all live in the engine (`digest.py`); this just lays the resulting `DigestData` out.
 """
 
 from __future__ import annotations
@@ -32,11 +33,17 @@ def render_digest_html(data: DigestData, unsubscribe_url: str) -> str:
     env = _build_env()
     template = env.get_template("digest.html.j2")
     feeders = [
-        {"name": f.display_name or "Someone", "longs": f.longs, "shorts": f.shorts}
+        {
+            "name": f.display_name or "Someone",
+            "sources": f.sources,
+            "selected": f.selected,
+        }
         for f in data.feeders
     ]
     return template.render(
         feeders=feeders,
+        quiet_feeders=data.quiet_feeders,
+        compact=data.compact,
         window_start=data.window_start,
         window_end=data.window_end,
         short_text_chars=SHORT_TEXT_RENDER_CHARS,

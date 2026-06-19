@@ -14,20 +14,32 @@
   header h1 { margin: 0 0 4px; font-size: 24px; }
   header .meta { color: #666; font-size: 13px; }
   .feeder { margin-bottom: 40px; }
-  .feeder > h2 { font-size: 19px; margin: 0 0 12px; }
-  .feeder > h2 .count { color: #999; font-weight: normal; font-size: 14px; }
-  .long { margin: 0 0 16px; }
-  .long h3 { font-size: 16px; margin: 0 0 4px; }
-  .long h3 a { color: #0b5cad; text-decoration: none; }
-  .long h3 a:hover { text-decoration: underline; }
+  .feeder > h2 { font-size: 20px; margin: 0 0 16px; }
+  .source { margin: 0 0 20px; padding-left: 16px; border-left: 3px solid #e5e5e5; }
+  .source > h3 { font-size: 14px; margin: 0 0 10px; color: #555; text-transform: uppercase; letter-spacing: .04em; }
+  .long { margin: 0 0 14px; }
+  .long h4 { font-size: 16px; margin: 0 0 4px; font-weight: 600; }
+  .long h4 a { color: #0b5cad; text-decoration: none; }
+  .long h4 a:hover { text-decoration: underline; }
   .long .excerpt { margin: 0; color: #444; font-size: 14px; }
   .long .date, .short .date { color: #999; font-size: 12px; }
-  .shorts { border-top: 1px solid #e5e5e5; padding-top: 12px; margin-top: 16px; }
-  .shorts .label { text-transform: uppercase; letter-spacing: .05em; font-size: 11px; color: #999; margin-bottom: 8px; }
-  .short { margin: 0 0 10px; font-size: 14px; }
+  .shorts { list-style: none; padding: 0; margin: 8px 0 0; }
+  .short { margin: 0 0 8px; font-size: 14px; }
   .short a { color: #0b5cad; text-decoration: none; }
   .short a:hover { text-decoration: underline; }
   .empty { color: #999; font-style: italic; }
+  /* Compact format: one line per feeder when many are active. */
+  .compact { list-style: none; padding: 0; margin: 0; }
+  .compact-row { padding: 10px 0; border-bottom: 1px solid #eee; font-size: 14px; }
+  .compact-row .who { font-weight: 600; color: #1a1a1a; }
+  .compact-row .who::after { content: " — "; color: #bbb; font-weight: 400; }
+  .compact-row a { color: #0b5cad; text-decoration: none; }
+  .compact-row a:hover { text-decoration: underline; }
+  .compact-row .date { color: #999; font-size: 12px; }
+  .quiet { border-top: 1px solid #e5e5e5; margin-top: 32px; padding-top: 20px; color: #999; }
+  .quiet h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .04em; margin: 0 0 8px; }
+  .quiet p { font-size: 13px; margin: 0; }
+  .quiet .names { color: #777; }
   footer { border-top: 1px solid #e5e5e5; margin-top: 40px; padding-top: 16px; color: #999; font-size: 12px; }
   footer a { color: #999; }
 </style>
@@ -42,36 +54,61 @@
 
 {% if not feeders %}
   <p class="empty">Nothing new from the people you follow this period.</p>
-{% endif %}
-
+{% elif compact %}
+{# Many active feeders: collapse each to one line with its single representative item. #}
+<ul class="compact">
+  {% for feeder in feeders %}
+  {% set item = feeder.selected %}
+  <li class="compact-row">
+    <span class="who">{{ feeder.name }}</span>
+    {# Long/RSS items carry a title; Bluesky shorts carry text; title-less RSS (e.g. a
+       Mastodon toot) carries only an excerpt; bare URL is the last resort. #}
+    <a href="{{ item.url }}">{{ (item.title or item.text or item.excerpt or item.url) | truncate_words(short_text_chars) }}</a>
+    <span class="date">· {{ item.published_at.strftime("%b %d") }}</span>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
 {% for feeder in feeders %}
 <section class="feeder">
-  <h2>From {{ feeder.name }}
-    <span class="count">· {{ feeder.longs|length }} post{{ "" if feeder.longs|length == 1 else "s" }}{% if feeder.shorts %}, {{ feeder.shorts|length }} update{{ "" if feeder.shorts|length == 1 else "s" }}{% endif %}</span>
-  </h2>
+  <h2>From {{ feeder.name }}</h2>
 
-  {% for item in feeder.longs %}
-  <article class="long">
-    <h3><a href="{{ item.url }}">{{ item.title or item.url }}</a></h3>
-    {% if item.excerpt %}<p class="excerpt">{{ item.excerpt }}</p>{% endif %}
-    <div class="date">{{ item.published_at.strftime("%b %d, %Y") }}</div>
-  </article>
-  {% endfor %}
+  {% for source in feeder.sources %}
+  <div class="source">
+    <h3>{{ source.label }}</h3>
 
-  {% if feeder.shorts %}
-  <div class="shorts">
-    <div class="label">Also posted</div>
-    {% for item in feeder.shorts %}
-    <div class="short">
-      {# RSS shorts (blogmarks) carry a title; Bluesky shorts carry text. #}
-      <a href="{{ item.url }}">{{ (item.title or item.text) | truncate_words(short_text_chars) }}</a>
-      <span class="date">· {{ item.published_at.strftime("%b %d") }}</span>
-    </div>
+    {% for item in source.longs %}
+    <article class="long">
+      <h4><a href="{{ item.url }}">{{ item.title or item.url }}</a></h4>
+      {% if item.excerpt %}<p class="excerpt">{{ item.excerpt }}</p>{% endif %}
+      <div class="date">{{ item.published_at.strftime("%b %d, %Y") }}</div>
+    </article>
     {% endfor %}
+
+    {% if source.shorts %}
+    <ul class="shorts">
+      {% for item in source.shorts %}
+      <li class="short">
+        {# RSS shorts (blogmarks) carry a title; Bluesky shorts carry text. #}
+        <a href="{{ item.url }}">{{ (item.title or item.text) | truncate_words(short_text_chars) }}</a>
+        <span class="date">· {{ item.published_at.strftime("%b %d") }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
   </div>
-  {% endif %}
+  {% endfor %}
 </section>
 {% endfor %}
+{% endif %}
+
+{% if quiet_feeders %}
+<section class="quiet">
+  <h2>No updates</h2>
+  <p>Nothing this period from
+    <span class="names">{{ quiet_feeders | join(", ") }}</span>.</p>
+</section>
+{% endif %}
 
 <footer>
   You're receiving this because you subscribed on Edge Mosaic.

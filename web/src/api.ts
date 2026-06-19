@@ -63,17 +63,25 @@ export type DigestItem = {
   published_at: string;
 };
 
+export type DigestSource = {
+  label: string;
+  longs: DigestItem[];
+  shorts: DigestItem[];
+};
+
 export type DigestFeeder = {
   feeder_id: number;
   display_name: string | null;
-  longs: DigestItem[];
-  shorts: DigestItem[];
+  sources: DigestSource[];
+  selected: DigestItem; // representative item shown in the compact format
 };
 
 export type DigestPreview = {
   window_start: string;
   window_end: string;
   feeders: DigestFeeder[];
+  quiet_feeders: string[]; // followed feeders with sources but nothing in the window
+  compact: boolean; // one-line-per-feeder format (many active feeders)
 };
 
 export type MePatch = {

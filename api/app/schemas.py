@@ -102,14 +102,22 @@ class DigestItemOut(BaseModel):
     published_at: datetime
 
 
+class DigestSourceOut(BaseModel):
+    label: str
+    longs: list[DigestItemOut]
+    shorts: list[DigestItemOut]
+
+
 class DigestFeederOut(BaseModel):
     feeder_id: int
     display_name: str | None
-    longs: list[DigestItemOut]
-    shorts: list[DigestItemOut]
+    sources: list[DigestSourceOut]
+    selected: DigestItemOut  # representative item the compact view shows for this feeder
 
 
 class DigestOut(BaseModel):
     window_start: datetime
     window_end: datetime
     feeders: list[DigestFeederOut]
+    quiet_feeders: list[str]  # followed feeders with sources but nothing in the window
+    compact: bool  # one-line-per-feeder format (many active feeders)
