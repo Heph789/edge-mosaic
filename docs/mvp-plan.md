@@ -299,21 +299,30 @@ Notes:
 
 ---
 
-## 7. Frontend (7 screens / ~4 routes)
+## 7. Frontend (Slice 5)
 
-**Public**
-1. **Login** — enter edge email → "check your inbox" (privacy-preserving, see §2).
-2. **Verify** — `/auth/verify?token=…`, invisible: exchange token → store session →
-   redirect. Error state if expired.
-3. **Unsubscribe** — public token link target from digest emails.
+Vite + React + **TypeScript** SPA, **TanStack Query** for server state, hand-written typed
+`api.ts` (mirrored from the API's `/openapi.json`), **plain CSS**, **React Router**.
+Hosted on **Vercel**; talks to the Railway API via `VITE_API_URL` (CORS configured on
+FastAPI, `allow_credentials=False`). **Full spec:** [`slice-5-frontend.md`](./slice-5-frontend.md).
 
-**Authenticated app shell** (tabs)
-4. **First-login onboarding** — set display name; nudge toward add-content / find-people.
-5. **My Content** — list sources, add source (paste → validate → confirm), remove.
-6. **Discover** — search feeders by name (`ILIKE`), shows name + platforms +
-   subscribe/unsubscribe toggle.
-7. **My Digest** — manage subscriptions, set frequency (weekly/monthly), pause digests,
-   and a **live digest preview**.
+**Public routes**
+1. **Login** (`/login`) — enter edge email → "check your inbox" (privacy-preserving, §2).
+2. **Verify** (`/auth/verify?token=…`) — POST-exchange landing: store session → redirect
+   (to onboarding if not onboarded). Error state if expired. (POST, so a scanner's
+   prefetch GET only loads JS, never burning the token.)
+3. **Unsubscribe** (`/unsubscribe?token=…`) — POSTs the token, sets `digest_paused`.
+
+**Onboarding** (`/onboarding`, authed, outside the tab shell)
+4. Set display name (`PATCH /me`) before entering the app.
+
+**Authenticated app shell — three tabs** (default landing → Directory)
+5. **Directory** — search feeders by name (`ILIKE`, debounced); name + platforms +
+   **optimistic** subscribe/unsubscribe toggle.
+6. **Digest** — manage subscriptions, set frequency (weekly/monthly), pause; **live
+   preview** rendered client-side from the `DigestOut` JSON (never `dangerouslySetInnerHTML`).
+7. **Profile** — edit display name, manage **your content sources** (paste → preview →
+   confirm → add, remove), logout.
 
 ---
 
@@ -340,7 +349,9 @@ a runnable milestone.
    calendar-anchored due-scheduling + `sent_digests` idempotency, env-flagged Resend send
    behind `send_email()`, welcome sample, one-click unsubscribe. Migrations validated on
    real Postgres. **Full spec:** [`slice-4-cron-email.md`](./slice-4-cron-email.md).
-5. **Slice 5 — Frontend** — the 7 screens tied together.
+5. **Slice 5 — Frontend** — the Vite/React/TS SPA: 3-tab shell (Directory · Digest ·
+   Profile) + public auth/verify/unsubscribe pages, wired to the API; adds CORS to FastAPI;
+   deployed on Vercel. **Full spec:** [`slice-5-frontend.md`](./slice-5-frontend.md).
 
 > Why not auth-first: auth and frontend are well-trodden and certain to work; ingestion
 > is where real feeds break assumptions. Validate that in days, not after weeks of
