@@ -310,11 +310,16 @@ Consciously punted from the MVP, roughly in priority order:
   only**; Notes (Substack's short-form, Twitter-like feed) appear in *no* RSS. Capturing
   them needs a dedicated adapter producing `kind='short'` items — directly analogous to
   the Bluesky adapter — via one of: the **undocumented JSON endpoint**
-  (`<pub>.substack.com/api/v1/notes` / profile reader feed; some reads are public/no-auth
-  but it's unstable and ToS-grey), Substack's newer **official Developer API** (verify
-  whether it exposes *reading other users'* Notes vs. write/app-integration only), or a
-  **third-party scraper** (e.g. Apify, paid). Keys on the `substack.com/@handle` profile
-  URL the add-source flow currently rejects (§3) — same thread, opposite end.
+  (`<pub>.substack.com/api/v1/notes` / profile reader feed; public reads appear possible
+  but it's unstable, ToS-grey, and *read*-Notes is poorly trodden — even the leading
+  unofficial wrapper `NHagar/substack_api` covers posts but **not** Notes, so expect real
+  reverse-engineering), or a **third-party scraper** (e.g. Apify, paid, adds a dependency).
+  **Ruled out — the official Developer API:** it's profile-metadata only (subscriber
+  counts, bestseller/leaderboard, LinkedIn-linked profile data, keyed off a LinkedIn
+  handle), exposes **no** posts/Notes/comments, and gates on a form + ToS + 7–10 business
+  day approval — useless for content ingestion (checked 2026-06). Keys on the
+  `substack.com/@handle` profile URL the add-source flow currently rejects (§3) — same
+  thread, opposite end.
 - **Non-feed personal/company websites** — true HTML scraping (no RSS).
 - **Source-health handling** — track consecutive failures, flag broken sources in the
   feeder dashboard, optionally email feeders (options a/b from the design discussion;
