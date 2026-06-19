@@ -102,7 +102,15 @@ def test_discover_escapes_like_wildcards(client, db, make_user, auth):
     assert names == {"50% Off Deals"}
 
 
-def test_discover_empty_query_422(client, make_user, auth):
+def test_discover_empty_query_browses_all(client, make_user, auth):
+    # Empty / whitespace / absent q browses the whole directory (Slice 5: the Directory
+    # shows a list by default), excluding the searcher; it no longer 422s.
     searcher = make_user("s@example.com", "Searcher")
-    assert client.get("/discover?q=%20", headers=auth(searcher)).status_code == 422
-    assert client.get("/discover", headers=auth(searcher)).status_code == 422
+    make_user("a@example.com", "Alice A")
+    make_user("b@example.com", "Bob B")
+
+    for url in ("/discover?q=%20", "/discover"):
+        resp = client.get(url, headers=auth(searcher))
+        assert resp.status_code == 200
+        names = {h["display_name"] for h in resp.json()}
+        assert names == {"Alice A", "Bob B"}  # all discoverable users, self excluded

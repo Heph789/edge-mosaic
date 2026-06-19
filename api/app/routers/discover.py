@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query
 from sqlalchemy import select
 
 from ..deps import CurrentUser, DbDep
@@ -24,21 +24,22 @@ def _like_escape(s: str, esc: str = "\\") -> str:
 def discover(
     user: CurrentUser,
     db: DbDep,
-    q: str = Query(min_length=1),
+    q: str = Query("", description="name filter; empty = browse all (capped)"),
 ) -> list[DiscoverOut]:
     term = q.strip()
-    if not term:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "empty query")
 
-    pattern = f"%{_like_escape(term)}%"
+    # Empty q browses the whole directory (capped); a term ILIKE-filters by name.
+    conditions = [
+        User.display_name.is_not(None),
+        User.id != user.id,  # don't surface yourself
+    ]
+    if term:
+        conditions.append(User.display_name.ilike(f"%{_like_escape(term)}%", escape="\\"))
+
     rows = list(
         db.execute(
             select(User.id, User.display_name)
-            .where(
-                User.display_name.is_not(None),
-                User.display_name.ilike(pattern, escape="\\"),
-                User.id != user.id,  # don't surface yourself
-            )
+            .where(*conditions)
             .order_by(User.display_name)
             .limit(DISCOVER_LIMIT)
         ).all()

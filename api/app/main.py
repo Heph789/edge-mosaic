@@ -9,8 +9,9 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import FastAPI, Header, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 
-from . import auth
+from . import auth, config
 from .deps import CurrentUser, DbDep
 from .routers import discover, digest, sources, subscriptions, unsubscribe
 from .schemas import (
@@ -25,6 +26,15 @@ from .schemas import (
 VALID_FREQUENCIES = {"weekly", "monthly"}
 
 app = FastAPI(title="Edge Mosaic API")
+# The SPA lives on a separate origin (Vercel) from this API (Railway); the browser
+# preflights authed calls. Bearer header → allow_credentials stays False.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=config.CORS_ORIGINS,
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.include_router(sources.router)
 app.include_router(subscriptions.router)
 app.include_router(discover.router)

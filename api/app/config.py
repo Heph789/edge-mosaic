@@ -78,6 +78,15 @@ APP_BASE_URL = os.environ.get("APP_BASE_URL", "http://localhost:5173")
 # one-click unsubscribe POST target in List-Unsubscribe headers.
 API_BASE_URL = os.environ.get("API_BASE_URL", "http://localhost:8000")
 
+# CORS (Slice 5): the SPA is a separate origin, so the browser preflights authed calls.
+# Comma-separated allowlist; local dev defaults to the Vite dev server. Prod sets this to
+# the Vercel domain. allow_credentials stays False — auth is a bearer header, not cookies.
+CORS_ORIGINS = [
+    o.strip()
+    for o in os.environ.get("CORS_ORIGINS", "http://localhost:5173").split(",")
+    if o.strip()
+]
+
 # Default allowlist roster (real attendee PII — gitignored, never read into the repo).
 ALLOWLIST_CSV_DEFAULT = next(
     iter(sorted((API_DIR / "input").glob("attendees-*.csv"))), None
