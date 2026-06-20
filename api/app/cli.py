@@ -1,6 +1,7 @@
 """Operator CLI.
 
     python -m app.cli import-allowlist [csv]  # seed allowed_emails + pre-seed named users
+    python -m app.cli seed-sources [md]       # pre-seed feeders + sources from source-list.md
     python -m app.cli scrape                  # fetch all real sources, dedup-insert items
 
 The digest send runs as a job entrypoint, not here: `python -m app.jobs.digest`.
@@ -20,6 +21,7 @@ from .allowlist import import_allowlist
 from .config import API_DIR
 from .db import SessionLocal
 from .ingest import scrape
+from .seed import SOURCE_LIST_PATH, seed_sources
 
 
 def ensure_schema() -> None:
@@ -42,6 +44,23 @@ def cmd_scrape() -> None:
         else:
             print(f"  ✗ {r.input_url:<40} FAILED — {r.error}")
     print(f"\n{total_new} new item(s) stored.")
+
+
+def cmd_seed_sources(md_arg: str | None) -> int:
+    ensure_schema()
+    md_path = Path(md_arg) if md_arg else SOURCE_LIST_PATH
+    if not md_path.exists():
+        print(f"source list not found: {md_path}", file=sys.stderr)
+        return 1
+
+    with SessionLocal() as session:
+        stats = seed_sources(session, md_path)
+
+    print(f"Seeded from {md_path.name}:")
+    print(f"  {stats.feeders_created} feeders created ({stats.feeders_existing} already present)")
+    print(f"  {stats.sources_created} sources created ({stats.sources_existing} already present)")
+    print(f"  {stats.urls_skipped} URLs skipped (X/Twitter, GitHub — no adapter)")
+    return 0
 
 
 def cmd_import_allowlist(csv_arg: str | None) -> int:
@@ -69,11 +88,15 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     imp_p = sub.add_parser("import-allowlist", help="seed allowed_emails + pre-seed named users")
     imp_p.add_argument("csv", nargs="?", default=None, help="path to roster CSV (defaults to api/input/attendees-*.csv)")
+    seed_p = sub.add_parser("seed-sources", help="pre-seed feeders + sources from source-list.md")
+    seed_p.add_argument("md", nargs="?", default=None, help="path to source list (defaults to docs/source-list.md)")
     sub.add_parser("scrape", help="fetch all real sources and store deduped items")
 
     args = parser.parse_args(argv)
     if args.command == "import-allowlist":
         return cmd_import_allowlist(args.csv)
+    elif args.command == "seed-sources":
+        return cmd_seed_sources(args.md)
     elif args.command == "scrape":
         cmd_scrape()
     return 0
