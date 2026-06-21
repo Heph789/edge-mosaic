@@ -16,6 +16,7 @@ from . import config
 from .email import send_email
 from .models import AllowedEmail, MagicLinkToken, Session, User, utcnow
 from .security import hash_token, new_token
+from .villages import assign_default_village
 
 
 def normalize_email(email: str) -> str:
@@ -116,6 +117,7 @@ def verify_token(db: DbSession, raw_token: str) -> VerifyResult | None:
         )
         db.add(user)
         db.flush()  # assign user.id
+        assign_default_village(db, user)  # every new user joins the default village
     elif user.verified_at is None:
         user.verified_at = now  # pre-seeded ghost logging in for the first time
 

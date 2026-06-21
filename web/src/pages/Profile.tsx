@@ -1,8 +1,17 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { api, ApiError, type SourcePreview } from "../api";
+import { ApiError, type Link, type Visibility } from "../api";
 import { useAuth } from "../auth";
-import { useAddSource, useDeleteSource, useSources, useUpdateMe } from "../hooks/queries";
+import { useUpdateMe } from "../hooks/queries";
+import {
+  BioField,
+  CitiesEditor,
+  ContactFields,
+  ImageUploader,
+  LinksEditor,
+  VisibilityToggle,
+} from "../components/ProfileFields";
+import { SourcesEditor } from "../components/SourcesEditor";
 
 export function Profile() {
   const { user, logout } = useAuth();
@@ -22,8 +31,13 @@ export function Profile() {
         </button>
       </div>
       <p className="muted small">{user?.email}</p>
+      {user && user.villages.length > 0 && (
+        <p className="muted small">Village: {user.villages.join(", ")}</p>
+      )}
 
       <DisplayNameSection />
+      <PhotosSection />
+      <AboutSection />
       <SourcesSection />
     </div>
   );
@@ -76,147 +90,93 @@ function DisplayNameSection() {
   );
 }
 
-type AddState =
-  | { step: "idle" }
-  | { step: "previewing" }
-  | { step: "confirm"; preview: SourcePreview }
-  | { step: "adding"; preview: SourcePreview };
-
-function SourcesSection() {
-  const sources = useSources();
-  const addSource = useAddSource();
-  const deleteSource = useDeleteSource();
-
-  const [url, setUrl] = useState("");
-  const [state, setState] = useState<AddState>({ step: "idle" });
-  const [error, setError] = useState<string | null>(null);
-
-  async function onPreview(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
-    const trimmed = url.trim();
-    if (!trimmed) return;
-    setState({ step: "previewing" });
-    try {
-      const preview = await api.previewSource(trimmed);
-      setState({ step: "confirm", preview });
-    } catch (err) {
-      setState({ step: "idle" });
-      setError(errorText(err));
-    }
-  }
-
-  async function onConfirm() {
-    if (state.step !== "confirm") return;
-    setError(null);
-    setState({ step: "adding", preview: state.preview });
-    try {
-      // The create call re-validates server-side; the preview was only a confirmation.
-      await addSource.mutateAsync(url.trim());
-      setUrl("");
-      setState({ step: "idle" });
-    } catch (err) {
-      setState({ step: "confirm", preview: state.preview });
-      setError(errorText(err));
-    }
-  }
-
-  function onCancel() {
-    setState({ step: "idle" });
-    setError(null);
-  }
-
+function PhotosSection() {
+  const { user, applyUser } = useAuth();
   return (
     <section className="card stack">
-      <h2>Your sources</h2>
-      <p className="muted small">
-        Paste a blog/Substack RSS URL or a Bluesky handle. (X / Twitter coming soon.)
-      </p>
-
-      <form onSubmit={onPreview} className="settings-row">
-        <input
-          placeholder="https://example.com or @handle.bsky.social"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          disabled={state.step === "confirm" || state.step === "adding"}
-        />
-        <button
-          className="btn"
-          type="submit"
-          disabled={state.step !== "idle" || url.trim().length === 0}
-        >
-          {state.step === "previewing" ? "Checking…" : "Preview"}
-        </button>
-      </form>
-
-      {error && <p className="error small">{error}</p>}
-
-      {(state.step === "confirm" || state.step === "adding") && (
-        <div className="confirm-card stack">
-          <div>
-            <strong>{platformLabel(state.preview.type)}</strong> — found{" "}
-            {state.preview.found_count} recent{" "}
-            {state.preview.found_count === 1 ? "post" : "posts"}
-            {state.preview.latest_title && (
-              <>
-                , latest: <em>“{state.preview.latest_title}”</em>
-              </>
-            )}
-            .
-          </div>
-          <div className="settings-row">
-            <button
-              className="btn btn-primary"
-              onClick={onConfirm}
-              disabled={state.step === "adding"}
-            >
-              {state.step === "adding" ? "Adding…" : "Add source"}
-            </button>
-            <button className="btn btn-ghost" onClick={onCancel} disabled={state.step === "adding"}>
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {sources.isLoading ? (
-        <p className="muted">Loading…</p>
-      ) : sources.data && sources.data.length === 0 ? (
-        <p className="muted">No sources yet.</p>
-      ) : (
-        <ul className="list">
-          {sources.data?.map((s) => (
-            <li className="row" key={s.id}>
-              <div className="row-main">
-                <span className="row-name">{s.title ?? s.input_url}</span>
-                <span className="muted small">
-                  <span className="pill">{platformLabel(s.type)}</span> {s.input_url}
-                </span>
-              </div>
-              <button
-                className="btn btn-ghost"
-                disabled={deleteSource.isPending}
-                onClick={() => deleteSource.mutate(s.id)}
-              >
-                Remove
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      <h2>Photos</h2>
+      <ImageUploader
+        kind="profile"
+        label="Profile photo"
+        url={user?.profile_image_url ?? null}
+        onUser={applyUser}
+      />
+      <ImageUploader
+        kind="tile"
+        label="Tile image"
+        url={user?.tile_image_url ?? null}
+        onUser={applyUser}
+      />
     </section>
   );
 }
 
-function platformLabel(type: string): string {
-  if (type === "rss") return "RSS";
-  if (type === "bluesky") return "Bluesky";
-  return type;
+// Bio, cities, contact, links, and visibility — one form, one Save (a single PATCH /me).
+function AboutSection() {
+  const { user, applyUser } = useAuth();
+  const [bio, setBio] = useState(user?.bio ?? "");
+  const [cities, setCities] = useState<string[]>(user?.cities ?? []);
+  const [contactEmail, setContactEmail] = useState(user?.contact_email ?? "");
+  const [contactPhone, setContactPhone] = useState(user?.contact_phone ?? "");
+  const [links, setLinks] = useState<Link[]>(user?.links ?? []);
+  const [visibility, setVisibility] = useState<Visibility>(user?.visibility ?? "community");
+  const [status, setStatus] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const updateMe = useUpdateMe((fresh) => {
+    applyUser(fresh);
+    setStatus("Saved.");
+  });
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    setStatus(null);
+    setError(null);
+    try {
+      await updateMe.mutateAsync({
+        bio: bio.trim(),
+        cities: cities.map((c) => c.trim()).filter(Boolean),
+        contact_email: contactEmail.trim(),
+        contact_phone: contactPhone.trim(),
+        links: links.filter((l) => l.label.trim() && l.url.trim()),
+        visibility,
+      });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Couldn't save — try again.");
+    }
+  }
+
+  return (
+    <section className="card stack">
+      <h2>About</h2>
+      <form onSubmit={onSubmit} className="stack">
+        <BioField value={bio} onChange={setBio} />
+        <CitiesEditor cities={cities} onChange={setCities} />
+        <ContactFields
+          email={contactEmail}
+          phone={contactPhone}
+          onEmail={setContactEmail}
+          onPhone={setContactPhone}
+        />
+        <LinksEditor links={links} onChange={setLinks} />
+        <VisibilityToggle value={visibility} onChange={setVisibility} />
+        <div className="settings-row">
+          <button className="btn btn-primary" type="submit" disabled={updateMe.isPending}>
+            {updateMe.isPending ? "Saving…" : "Save"}
+          </button>
+        </div>
+        {status && <p className="success small">{status}</p>}
+        {error && <p className="error small">{error}</p>}
+      </form>
+    </section>
+  );
 }
 
-// Map API failures to inline copy: 400 = rejected platform (x.com "coming soon"),
-// 422 = dead/unreadable feed. Otherwise show the server message verbatim.
-function errorText(err: unknown): string {
-  if (err instanceof ApiError) return err.message;
-  return "Something went wrong. Try again.";
+function SourcesSection() {
+  return (
+    <section className="card stack">
+      <h2>Your sources</h2>
+      <SourcesEditor />
+    </section>
+  );
 }

@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Query
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from ..deps import CurrentUser, DbDep
-from ..models import Subscription, User
+from ..models import Subscription, User, UserVillage
 from ..schemas import DiscoverOut
 from ..sources import platforms_for
+from ..storage import public_url
+from ..villages import village_ids_for
 
 router = APIRouter(tags=["discover"])
 
@@ -36,16 +38,33 @@ def discover(
     if term:
         conditions.append(User.display_name.ilike(f"%{_like_escape(term)}%", escape="\\"))
 
+    # Visibility gate: a 'village' profile is only listed when it shares a village with the
+    # viewer; 'community' profiles are always listed.
+    my_village_ids = village_ids_for(db, user.id)
+    shares_village = (
+        select(UserVillage.user_id)
+        .where(UserVillage.village_id.in_(my_village_ids or [-1]))
+        .scalar_subquery()
+    )
+    conditions.append(
+        or_(User.visibility != "village", User.id.in_(shares_village))
+    )
+
     rows = list(
         db.execute(
-            select(User.id, User.display_name)
+            select(
+                User.id,
+                User.display_name,
+                User.profile_image_path,
+                User.tile_image_path,
+            )
             .where(*conditions)
             .order_by(User.display_name)
             .limit(DISCOVER_LIMIT)
         ).all()
     )
 
-    feeder_ids = [fid for fid, _ in rows]
+    feeder_ids = [r[0] for r in rows]
     platforms = platforms_for(db, feeder_ids)
     subscribed = set(
         db.scalars(
@@ -61,6 +80,8 @@ def discover(
             display_name=name,
             platforms=platforms.get(fid, []),
             is_subscribed=fid in subscribed,
+            profile_image_url=public_url(profile_path),
+            tile_image_url=public_url(tile_path),
         )
-        for fid, name in rows
+        for fid, name, profile_path, tile_path in rows
     ]

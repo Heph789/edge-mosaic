@@ -20,8 +20,8 @@ describe("Verify", () => {
 
     renderWithProviders(<AppRoutes />, { path: "/auth/verify?token=good-token" });
 
-    // A not-yet-onboarded user lands on the onboarding screen.
-    expect(await screen.findByText(/Welcome to Edge Mosaic/i)).toBeInTheDocument();
+    // A not-yet-onboarded user lands on the onboarding wizard.
+    expect(await screen.findByText(/Set up your profile/i)).toBeInTheDocument();
     expect(localStorage.getItem("em_token")).toBe("sess-abc");
   });
 

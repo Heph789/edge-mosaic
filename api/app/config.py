@@ -75,6 +75,35 @@ MAGIC_LINK_TTL_MINUTES = 15
 SESSION_TTL_DAYS = 30
 DISPLAY_NAME_MAX_CHARS = 50
 
+# --- Profile (onboarding artifacts) ---------------------------------------------------
+BIO_MAX_CHARS = 280
+CONTACT_EMAIL_MAX_CHARS = 254  # RFC 5321 max email length
+CONTACT_PHONE_MAX_CHARS = 40
+CITY_MAX_CHARS = 80
+MAX_CITIES = 5
+LINK_LABEL_MAX_CHARS = 60
+LINK_URL_MAX_CHARS = 2000
+MAX_LINKS = 10
+VALID_VISIBILITIES = {"community", "village"}
+# Backend-assigned village every new user joins for now (third-party verification later).
+DEFAULT_VILLAGE_NAME = "EE '26"
+DEFAULT_VILLAGE_SLUG = "ee-26"
+
+# --- Uploaded media (profile + tile images) -------------------------------------------
+# Local-filesystem store for dev, served by the API at MEDIA_URL_PREFIX. The storage seam
+# in app/storage.py is the one-file swap point for object storage in prod (cf. app/email.py).
+MEDIA_DIR = DATA_DIR / "media"
+MEDIA_DIR.mkdir(exist_ok=True)
+MEDIA_URL_PREFIX = "/media"
+MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB
+# content-type -> file extension for the formats we accept.
+ALLOWED_IMAGE_TYPES = {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/webp": "webp",
+}
+VALID_IMAGE_KINDS = {"profile", "tile"}
+
 # Where the magic link points in prod (the SPA verify route). Slice 2 only logs it.
 # Overridable so Slice 5 can point at the real CDN origin.
 APP_BASE_URL = os.environ.get("APP_BASE_URL", "http://localhost:5173")

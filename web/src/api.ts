@@ -9,6 +9,11 @@ export const TOKEN_KEY = "em_token";
 
 // --- shared types (mirror app/schemas.py) ---------------------------------------------
 export type DigestFrequency = "weekly" | "monthly";
+export type Visibility = "community" | "village";
+export type ImageKind = "profile" | "tile";
+
+export type Link = { label: string; url: string };
+export type ProfileSource = { type: string; url: string; title: string | null };
 
 export type User = {
   id: number;
@@ -17,6 +22,30 @@ export type User = {
   digest_frequency: DigestFrequency;
   digest_paused: boolean;
   onboarded: boolean;
+  // profile artifacts
+  bio: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  profile_image_url: string | null;
+  tile_image_url: string | null;
+  visibility: Visibility;
+  cities: string[];
+  links: Link[];
+  villages: string[];
+};
+
+export type PublicProfile = {
+  id: number;
+  display_name: string | null;
+  bio: string | null;
+  contact_email: string | null;
+  profile_image_url: string | null;
+  tile_image_url: string | null;
+  cities: string[];
+  links: Link[];
+  platforms: string[];
+  sources: ProfileSource[];
+  is_subscribed: boolean;
 };
 
 export type VerifyResult = { session_token: string; user: User };
@@ -52,6 +81,8 @@ export type Discover = {
   display_name: string | null;
   platforms: string[];
   is_subscribed: boolean;
+  profile_image_url: string | null;
+  tile_image_url: string | null;
 };
 
 export type DigestItem = {
@@ -88,6 +119,12 @@ export type MePatch = {
   display_name?: string;
   digest_frequency?: DigestFrequency;
   digest_paused?: boolean;
+  bio?: string;
+  contact_email?: string;
+  contact_phone?: string;
+  visibility?: Visibility;
+  cities?: string[];
+  links?: Link[];
 };
 
 // --- error type carried to the UI so pages can surface 400 / 422 inline ---------------
@@ -125,17 +162,20 @@ async function errorMessage(res: Response): Promise<string> {
 type RequestOpts = {
   method?: string;
   json?: unknown;
+  // multipart body; the browser sets the content-type (with boundary) itself, so we
+  // must NOT add a content-type header when this is present.
+  form?: FormData;
 };
 
 async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
-  const { method = "GET", json } = opts;
+  const { method = "GET", json, form } = opts;
   const res = await fetch(`${API_URL}${path}`, {
     method,
     headers: {
       ...(json !== undefined ? { "content-type": "application/json" } : {}),
       ...tokenHeader(),
     },
-    body: json !== undefined ? JSON.stringify(json) : undefined,
+    body: form !== undefined ? form : json !== undefined ? JSON.stringify(json) : undefined,
   });
 
   if (res.status === 401) {
@@ -164,6 +204,16 @@ export const api = {
   // --- me ---
   getMe: () => request<User>("/me"),
   updateMe: (patch: MePatch) => request<User>("/me", { method: "PATCH", json: patch }),
+  uploadImage: (kind: ImageKind, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request<User>(`/me/images/${kind}`, { method: "POST", form });
+  },
+  deleteImage: (kind: ImageKind) =>
+    request<User>(`/me/images/${kind}`, { method: "DELETE" }),
+
+  // --- public profile ---
+  getProfile: (id: number) => request<PublicProfile>(`/users/${id}`),
 
   // --- sources ---
   previewSource: (url: string) =>

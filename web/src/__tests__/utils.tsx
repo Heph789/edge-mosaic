@@ -14,6 +14,15 @@ export const testUser: User = {
   digest_frequency: "weekly",
   digest_paused: false,
   onboarded: true,
+  bio: null,
+  contact_email: null,
+  contact_phone: null,
+  profile_image_url: null,
+  tile_image_url: null,
+  visibility: "community",
+  cities: [],
+  links: [],
+  villages: ["EE '26"],
 };
 
 // Render a tree behind the real providers. `path` seeds the MemoryRouter; pass

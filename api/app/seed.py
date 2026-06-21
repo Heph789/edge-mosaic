@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from .config import API_DIR
 from .models import Source, User
+from .villages import assign_default_village
 
 SOURCE_LIST_PATH = API_DIR.parent / "docs" / "source-list.md"
 
@@ -100,6 +101,7 @@ def seed_sources(session: Session, path: Path | None = None) -> SeedStats:
             user = User(email=email, display_name=spec.name)
             session.add(user)
             session.flush()  # assign user.id for the sources below
+            assign_default_village(session, user)
             stats.feeders_created += 1
         else:
             stats.feeders_existing += 1

@@ -6,14 +6,17 @@ Email is the console sink; no frontend yet — drive it with curl / pytest.
 
 from __future__ import annotations
 
+import re
 from typing import Annotated
 
-from fastapi import FastAPI, Header, HTTPException, status
+from fastapi import FastAPI, File, Header, HTTPException, Path, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
-from . import auth, config
+from . import auth, config, storage
 from .deps import CurrentUser, DbDep
-from .routers import discover, digest, sources, subscriptions, unsubscribe
+from .models import ProfileLink, UserCity
+from .routers import discover, digest, profiles, sources, subscriptions, unsubscribe
 from .schemas import (
     GenericMessage,
     RequestLinkIn,
@@ -40,6 +43,14 @@ app.include_router(subscriptions.router)
 app.include_router(discover.router)
 app.include_router(digest.router)
 app.include_router(unsubscribe.router)
+app.include_router(profiles.router)
+
+# Serve uploaded profile/tile images (local-FS storage backend; see app/storage.py).
+app.mount(
+    config.MEDIA_URL_PREFIX,
+    StaticFiles(directory=config.MEDIA_DIR),
+    name="media",
+)
 
 _ELIGIBLE_MSG = "If your email is eligible, a login link is on its way."
 
@@ -66,7 +77,7 @@ def verify(body: VerifyIn, db: DbDep) -> VerifyOut:
         )
     return VerifyOut(
         session_token=result.session_token,
-        user=UserOut.model_validate(result.user),
+        user=UserOut.from_user(result.user),
     )
 
 
@@ -83,7 +94,24 @@ def logout(
 
 @app.get("/me", response_model=UserOut)
 def get_me(user: CurrentUser) -> UserOut:
-    return UserOut.model_validate(user)
+    return UserOut.from_user(user)
+
+
+def _clean_optional(value: str) -> str | None:
+    """Trim a free-text field; an empty string clears it (→ NULL)."""
+    return value.strip() or None
+
+
+_URL_SCHEME_RE = re.compile(r"^[a-z][a-z0-9+.\-]*:", re.IGNORECASE)
+
+
+def _normalize_url(url: str) -> str:
+    """Default a scheme-less link to https:// so 'chasejeter.com' opens as a real URL
+    (and isn't treated as a relative path). Leaves mailto:/tel:/http(s) untouched."""
+    url = url.strip()
+    if url and not _URL_SCHEME_RE.match(url):
+        url = f"https://{url}"
+    return url
 
 
 @app.patch("/me", response_model=UserOut)
@@ -104,6 +132,68 @@ def update_me(body: UpdateMeIn, user: CurrentUser, db: DbDep) -> UserOut:
         user.digest_frequency = body.digest_frequency
     if body.digest_paused is not None:
         user.digest_paused = body.digest_paused
+
+    # --- profile fields (empty string clears a free-text field) -----------------------
+    if body.bio is not None:
+        user.bio = _clean_optional(body.bio)
+    if body.contact_email is not None:
+        user.contact_email = _clean_optional(body.contact_email)
+    if body.contact_phone is not None:
+        user.contact_phone = _clean_optional(body.contact_phone)
+    if body.visibility is not None:
+        if body.visibility not in config.VALID_VISIBILITIES:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY, "invalid visibility"
+            )
+        user.visibility = body.visibility
+
+    # cities / links: replace-all when present (drop blanks, keep order via position).
+    if body.cities is not None:
+        user.cities.clear()
+        for pos, name in enumerate(c.strip() for c in body.cities):
+            if name:
+                user.cities.append(UserCity(name=name[: config.CITY_MAX_CHARS], position=pos))
+    if body.links is not None:
+        user.links.clear()
+        for pos, link in enumerate(body.links):
+            label, url = link.label.strip(), _normalize_url(link.url)
+            if label and url:
+                user.links.append(ProfileLink(label=label, url=url, position=pos))
+
     db.commit()
     db.refresh(user)
-    return UserOut.model_validate(user)
+    return UserOut.from_user(user)
+
+
+@app.post("/me/images/{kind}", response_model=UserOut)
+def upload_image(
+    user: CurrentUser,
+    db: DbDep,
+    file: Annotated[UploadFile, File()],
+    kind: Annotated[str, Path()],
+) -> UserOut:
+    if kind not in config.VALID_IMAGE_KINDS:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "unknown image kind")
+    attr = f"{kind}_image_path"
+    new_key = storage.save_image(user.id, kind, file)  # raises 422 on bad type/size
+    old_key = getattr(user, attr)
+    setattr(user, attr, new_key)
+    db.commit()
+    storage.delete_image(old_key)  # remove the replaced file after the row is committed
+    db.refresh(user)
+    return UserOut.from_user(user)
+
+
+@app.delete("/me/images/{kind}", response_model=UserOut)
+def delete_image(
+    user: CurrentUser, db: DbDep, kind: Annotated[str, Path()]
+) -> UserOut:
+    if kind not in config.VALID_IMAGE_KINDS:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "unknown image kind")
+    attr = f"{kind}_image_path"
+    old_key = getattr(user, attr)
+    setattr(user, attr, None)
+    db.commit()
+    storage.delete_image(old_key)
+    db.refresh(user)
+    return UserOut.from_user(user)

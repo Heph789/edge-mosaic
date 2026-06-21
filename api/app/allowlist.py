@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from .auth import normalize_email
 from .models import AllowedEmail, User
+from .villages import assign_default_village
 
 
 def _clean(value: str | None) -> str | None:
@@ -87,7 +88,10 @@ def import_allowlist(db: DbSession, csv_path: Path) -> ImportStats:
             if name is not None:
                 user = db.scalar(select(User).where(User.email == email))
                 if user is None:
-                    db.add(User(email=email, display_name=name))
+                    user = User(email=email, display_name=name)
+                    db.add(user)
+                    db.flush()  # assign user.id for village membership
+                    assign_default_village(db, user)
                     stats.seeded += 1
 
     db.commit()

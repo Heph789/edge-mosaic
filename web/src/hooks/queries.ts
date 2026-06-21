@@ -1,7 +1,7 @@
 // TanStack Query hooks — server state for the authed app. Query keys are stable so
 // mutations can target them for optimistic updates / invalidation.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, type Discover, type MePatch, type User } from "../api";
+import { api, type Discover, type ImageKind, type MePatch, type User } from "../api";
 
 const keys = {
   sources: ["sources"] as const,
@@ -38,6 +38,31 @@ export function useUpdateMe(onUser?: (user: User) => void) {
   return useMutation({
     mutationFn: (patch: MePatch) => api.updateMe(patch),
     onSuccess: (user) => onUser?.(user),
+  });
+}
+
+// Image upload / removal. Both return the fresh User so the caller can sync auth context.
+export function useUploadImage(onUser?: (user: User) => void) {
+  return useMutation({
+    mutationFn: ({ kind, file }: { kind: ImageKind; file: File }) =>
+      api.uploadImage(kind, file),
+    onSuccess: (user) => onUser?.(user),
+  });
+}
+
+export function useDeleteImage(onUser?: (user: User) => void) {
+  return useMutation({
+    mutationFn: (kind: ImageKind) => api.deleteImage(kind),
+    onSuccess: (user) => onUser?.(user),
+  });
+}
+
+// --- public profile -------------------------------------------------------------------
+export function useProfile(id: number | null) {
+  return useQuery({
+    queryKey: ["profile", id] as const,
+    queryFn: () => api.getProfile(id as number),
+    enabled: id != null,
   });
 }
 
