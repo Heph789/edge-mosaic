@@ -1,3 +1,4 @@
 - might want to use JWT for agents. Should think about how agents interact and get authenticated through the platform
 - github is another source users may want to subscribe to, and also youtube? Definitely LinkedIn. And definitely podcasts
 - right now 'type' is just rss or bluesky. These are the categories that matter for scraping, but for the display, we should have a 'label' that is more granular (substack, blog, youtube, podcast, etc)
+- sample digest doesn't really make sense unless part of onboarding is subscribing to people. maybe we should just keep it in the app

@@ -20,3 +20,8 @@ api/input/
 # local secrets (.env.example IS committed)
 .env
 .env.local
+
+# edge speaker data
+data/
+
+docs/edge-os-brief.md
