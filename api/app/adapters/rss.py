@@ -4,6 +4,7 @@ source validator in Slice 3."""
 from __future__ import annotations
 
 import hashlib
+import random
 import re
 import time
 from datetime import datetime, timezone
@@ -12,7 +13,15 @@ from urllib.parse import urljoin, urlparse
 import feedparser
 import httpx
 
-from ..config import EXCERPT_MAX_CHARS, RSS_FETCH_TIMEOUT, USER_AGENT
+from ..config import (
+    EXCERPT_MAX_CHARS,
+    RSS_FETCH_RETRIES,
+    RSS_FETCH_TIMEOUT,
+    RSS_RETRY_BACKOFF_BASE,
+    RSS_RETRY_MAX_DELAY,
+    USER_AGENT,
+    YOUTUBE_CONSENT_COOKIES,
+)
 from ..models import Source
 from ..text import classify_kind, strip_html, truncate_on_word
 from .base import NormalizedItem
@@ -24,6 +33,9 @@ FEED_LINK_TYPES = {
     "application/xml",
     "text/xml",
 }
+
+# Transient throttling/server errors worth a polite retry; 4xx like 404/403 are not.
+_RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
 
 # Platforms whose "page" is just a directory in front of a real RSS feed.
 _APPLE_PODCAST_RE = re.compile(r"podcasts\.apple\.com/.*?/id(\d+)")
@@ -49,11 +61,19 @@ class RSSAdapter:
         # deadline_seconds bounds *total* resolution wall-clock (interactive add); the
         # background scrape leaves it None and relies on the per-request timeout only.
         self._deadline_seconds = deadline_seconds
+        # Polite retry only on the background scrape — the interactive add path has a
+        # deadline to honor, so it opts out and stays snappy.
+        self._retries = 0 if deadline_seconds is not None else RSS_FETCH_RETRIES
         self._client = httpx.Client(
             timeout=timeout,
             follow_redirects=True,
             headers={"User-Agent": USER_AGENT},
         )
+        # Pre-accept YouTube's cookie-consent gate so the channel page + videos.xml feed
+        # return real content instead of a consent interstitial (the failure mode on the
+        # cookieless, datacenter-IP Railway cron). Domain-scoped → never sent elsewhere.
+        for name, value in YOUTUBE_CONSENT_COOKIES.items():
+            self._client.cookies.set(name, value, domain="youtube.com")
 
     # -- public ---------------------------------------------------------------
 
@@ -234,20 +254,56 @@ class RSSAdapter:
     # -- http helpers ---------------------------------------------------------
 
     def _get_bytes(self, url: str) -> bytes | None:
-        try:
-            resp = self._client.get(url)
-            resp.raise_for_status()
-            return resp.content
-        except httpx.HTTPError:
-            return None
+        resp = self._get_response(url)
+        return resp.content if resp is not None else None
 
     def _get_text(self, url: str) -> str | None:
-        try:
-            resp = self._client.get(url)
-            resp.raise_for_status()
-            return resp.text
-        except httpx.HTTPError:
+        resp = self._get_response(url)
+        return resp.text if resp is not None else None
+
+    def _get_response(self, url: str) -> httpx.Response | None:
+        """GET with a polite retry on transient throttling (429/5xx) and transport
+        errors (timeouts, connection resets). Honors Retry-After, backs off with jitter,
+        and gives up — returning None — on permanent failures (404/403) or last attempt."""
+        for attempt in range(self._retries + 1):
+            try:
+                resp = self._client.get(url)
+                resp.raise_for_status()
+                return resp
+            except httpx.HTTPError as exc:
+                status = (
+                    exc.response.status_code
+                    if isinstance(exc, httpx.HTTPStatusError)
+                    else None
+                )
+                retryable = status in _RETRYABLE_STATUS or isinstance(
+                    exc, httpx.TransportError
+                )
+                if not retryable or attempt == self._retries:
+                    return None
+                response = getattr(exc, "response", None)
+                time.sleep(self._retry_delay(attempt, response))
+        return None
+
+    def _retry_delay(self, attempt: int, response: httpx.Response | None) -> float:
+        retry_after = self._parse_retry_after(response)
+        if retry_after is not None:
+            return min(retry_after, RSS_RETRY_MAX_DELAY)
+        # Exponential backoff with full jitter, capped — polite spacing under load.
+        ceiling = min(RSS_RETRY_BACKOFF_BASE * (2**attempt), RSS_RETRY_MAX_DELAY)
+        return random.uniform(0, ceiling)
+
+    @staticmethod
+    def _parse_retry_after(response: httpx.Response | None) -> float | None:
+        if response is None:
             return None
+        value = response.headers.get("Retry-After")
+        if not value:
+            return None
+        try:
+            return max(0.0, float(value))  # delta-seconds form
+        except ValueError:
+            return None  # HTTP-date form: fall back to backoff
 
     @staticmethod
     def _base_url(url: str) -> str:

@@ -406,12 +406,20 @@ Consciously punted from the MVP, roughly in priority order:
   (low approval rate, weeks–months) — there is *no* product for reading individuals'
   personal posts, which is what the Edge community actually publishes. Realistic
   post-MVP shape if pursued: member-authorized OAuth, not a URL resolver.
-- **YouTube feed hardening** — channel→feed resolution works, but the public
-  `feeds/videos.xml?channel_id=…` fetch is **throttled/blocked at scale**: in a 30-feeder
-  live run, 9 of 10 YouTube sources came back as a non-feed consent/block page while one
-  identical-shape URL succeeded — intermittent anti-bot, not a code bug. Options:
-  retry-with-backoff, a browser-like User-Agent + consent cookie, or resolve via
-  `yt-dlp` / the **YouTube Data API** instead of the public XML feed.
+- **YouTube feed hardening** — ✅ *resolved* (see `docs/youtube-feed-hardening.md`). The
+  "consent/block page" was YouTube's **cookie-consent interstitial**, served to cookieless
+  clients (most aggressively to our datacenter-IP Railway cron); `feedparser` saw no feed
+  `version` and we stored nothing. Fix was the cheapest rung: a **realistic desktop
+  User-Agent** plus a youtube.com-scoped **consent cookie** (`SOCS=CAI`, `CONSENT=YES+`)
+  on the RSS client — this clears both the channel-HTML id scrape and the `videos.xml`
+  fetch. Added a **polite retry/backoff** layer on the scrape's RSS fetches as insurance
+  for the rate/burst case the cookie doesn't cover — retries only transient throttling
+  (429/5xx, timeouts), honors `Retry-After`, and the interactive add-time path opts out.
+  The repro now scrapes 10/10 seeded channels; mocked-HTTP unit tests
+  (`tests/test_youtube.py`, `tests/test_rss_retry.py`) lock both paths. Heavier options
+  (Data API v3, `yt-dlp`)
+  remain on the shelf if YouTube ever escalates to an IP-based bot challenge that a cookie
+  can't satisfy.
 - **Substack Notes ingestion (short-form)** — publication RSS (`/feed`) carries **posts
   only**; Notes (Substack's short-form, Twitter-like feed) appear in *no* RSS. Capturing
   them needs a dedicated adapter producing `kind='short'` items — directly analogous to

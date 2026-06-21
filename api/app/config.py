@@ -32,11 +32,30 @@ DATABASE_URL = _normalize_db_url(
 
 DIGEST_OUTPUT_PATH = DATA_DIR / "digest.html"
 
-# Polite identifier; some sites reject obvious non-browser agents outright.
-USER_AGENT = "Mozilla/5.0 (compatible; edge-mosaic-spike/0.1; +https://github.com/edge-mosaic)"
+# Realistic desktop UA. The earlier "edge-mosaic-spike/0.1" identifier was an obvious
+# non-browser agent; YouTube (and some other sites) reject those, and combined with a
+# cookieless datacenter IP it triggered YouTube's consent interstitial instead of the feed.
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+)
+
+# Cookies that pre-accept YouTube's EU cookie-consent gate. Without them a cookieless
+# client (our Railway cron, datacenter IP) is bounced to a consent HTML page for both the
+# channel page and the videos.xml feed — feedparser then sees no feed `version` and we
+# store nothing. Scoped to youtube.com only (see RSSAdapter) so other feeds are untouched.
+# SOCS=CAI is the modern acceptance value; CONSENT=YES+ covers the legacy gate.
+YOUTUBE_CONSENT_COOKIES = {"SOCS": "CAI", "CONSENT": "YES+"}
 
 RSS_FETCH_TIMEOUT = 10.0
 BLUESKY_FEED_LIMIT = 30
+
+# Polite retry on transient throttling (429/5xx, timeouts) during the background scrape.
+# Honors Retry-After; backs off exponentially with jitter rather than re-hammering. The
+# interactive add-time validator (which sets a deadline) opts out to stay snappy.
+RSS_FETCH_RETRIES = 2  # extra attempts after the first
+RSS_RETRY_BACKOFF_BASE = 0.5  # seconds; doubled per attempt, then jittered
+RSS_RETRY_MAX_DELAY = 8.0  # cap on any single backoff / Retry-After wait
 
 # Add-time validation (Slice 3): tighter than the background scrape since it's interactive.
 # Per-request timeout AND an overall resolution deadline, so the worst-case
