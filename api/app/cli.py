@@ -78,7 +78,8 @@ def cmd_seed_notable(json_arg: str | None) -> int:
     print(f"Seeded from {json_path.name}:")
     print(
         f"  {stats.created} notables created, {stats.promoted} promoted, "
-        f"{stats.existing} already present"
+        f"{stats.existing} already present, {stats.notables_demoted} demoted, "
+        f"{stats.notables_removed} pruned"
     )
     print(
         f"  {stats.sources_created} sources created ({stats.sources_existing} already "
@@ -118,7 +119,7 @@ def main(argv: list[str] | None = None) -> int:
     seed_p = sub.add_parser("seed-sources", help="pre-seed feeders + sources from source-list.md")
     seed_p.add_argument("md", nargs="?", default=None, help="path to source list (defaults to docs/source-list.md)")
     notable_p = sub.add_parser("seed-notable", help="pre-seed notable speakers + their profile links")
-    notable_p.add_argument("json", nargs="?", default=None, help="path to notable list (defaults to docs/notable-speakers.json)")
+    notable_p.add_argument("json", nargs="?", default=None, help="path to notable list (defaults to data/edge-esmeralda-2026/notable-speakers.json)")
     sub.add_parser("scrape", help="fetch all real sources and store deduped items")
 
     args = parser.parse_args(argv)
