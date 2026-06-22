@@ -519,6 +519,14 @@ textarea {
   gap: 4px;
   min-width: 0;
 }
+/* Directory bio snippet: clamp to two lines so long bios don't blow out the row. */
+.row-bio {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 
 /* --- profile modal --- */
 .modal-backdrop {

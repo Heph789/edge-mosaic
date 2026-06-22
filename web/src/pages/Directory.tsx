@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Discover } from "../api";
 import { Avatar } from "../components/ProfileView";
@@ -19,8 +19,27 @@ export function Directory() {
   const navigate = useNavigate();
   const debounced = useDebouncedValue(query, 300);
   const term = debounced.trim();
-  const { data, isError } = useDiscover(term);
+  const { data, isError, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useDiscover(term);
   const toggle = useToggleSubscribe(term);
+
+  // Flatten the paged results into one list for rendering.
+  const rows = data?.pages.flat();
+
+  // Infinite scroll: load the next page when a sentinel near the list end scrolls into view.
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node || !hasNextPage) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && !isFetchingNextPage) fetchNextPage();
+      },
+      { rootMargin: "200px" } // prefetch a bit before the user hits the bottom
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   return (
     <div className="page stack">
@@ -36,26 +55,30 @@ export function Directory() {
 
       {isError ? (
         <p className="error">Couldn't load the directory. Try again.</p>
-      ) : data && data.length === 0 ? (
+      ) : rows && rows.length === 0 ? (
         <p className="muted">
           {term.length === 0 ? "No one to show yet." : `No one matches “${term}”.`}
         </p>
-      ) : !data ? (
+      ) : !rows ? (
         <p className="muted">Loading…</p>
       ) : (
-        <ul className="list">
-          {data.map((row) => (
-            <DiscoverRow
-              key={row.user_id}
-              row={row}
-              pending={toggle.isPending}
-              onOpen={() => navigate(`/p/${row.username}`)}
-              onToggle={() =>
-                toggle.mutate({ userId: row.user_id, subscribe: !row.is_subscribed })
-              }
-            />
-          ))}
-        </ul>
+        <>
+          <ul className="list">
+            {rows.map((row) => (
+              <DiscoverRow
+                key={row.user_id}
+                row={row}
+                pending={toggle.isPending}
+                onOpen={() => navigate(`/p/${row.username}`)}
+                onToggle={() =>
+                  toggle.mutate({ userId: row.user_id, subscribe: !row.is_subscribed })
+                }
+              />
+            ))}
+          </ul>
+          <div ref={sentinelRef} aria-hidden />
+          {isFetchingNextPage && <p className="muted">Loading more…</p>}
+        </>
       )}
     </div>
   );
@@ -78,6 +101,7 @@ function DiscoverRow({
         <Avatar url={row.profile_image_url} name={row.display_name} />
         <span className="row-text">
           <span className="row-name">{row.display_name ?? "Unnamed"}</span>
+          {row.bio && <span className="row-bio muted small">{row.bio}</span>}
           <Platforms platforms={row.platforms} />
         </span>
       </button>

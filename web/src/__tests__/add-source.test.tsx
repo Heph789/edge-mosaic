@@ -19,6 +19,7 @@ describe("Add source (two-step preview → confirm)", () => {
       http.post(`${API}/sources/preview`, () =>
         HttpResponse.json({
           type: "rss",
+          label: "Blog",
           resolved_url: "https://blog.example.com/feed",
           title: "Example Blog",
           found_count: 7,
@@ -30,6 +31,7 @@ describe("Add source (two-step preview → confirm)", () => {
         const source = {
           id: 42,
           type: "rss",
+          label: "Blog",
           input_url: "https://blog.example.com",
           resolved_feed_url: "https://blog.example.com/feed",
           title: "Example Blog",

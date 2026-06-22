@@ -1,7 +1,6 @@
 // Shared read-only rendering of a public profile, used by the standalone /p/{username}
 // page. Kept here (not in Directory) so it has no dependency back on the Directory page.
 import type { ProfileSource, PublicProfile } from "../api";
-import { platformLabel } from "./SourcesEditor";
 
 export function Avatar({ url, name }: { url: string | null; name: string | null }) {
   if (url) return <img className="avatar" src={url} alt="" />;
@@ -88,7 +87,7 @@ function SourceLinks({ sources }: { sources: ProfileSource[] }) {
             <a href={s.url} target="_blank" rel="noreferrer noopener">
               {s.title ?? s.url}
             </a>
-            <span className="pill">{platformLabel(s.type)}</span>
+            <span className="pill">{s.label}</span>
           </li>
         ))}
       </ul>

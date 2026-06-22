@@ -9,7 +9,12 @@ from ..deps import CurrentUser, DbDep
 from ..ingest import scrape_source
 from ..models import Source
 from ..schemas import SourceOut, SourcePreviewOut, UrlIn
-from ..sources import SourceRejected, detect_type, preview_source
+from ..sources import (
+    SourceRejected,
+    detect_type,
+    normalize_source_url,
+    preview_source,
+)
 
 router = APIRouter(tags=["sources"])
 
@@ -17,7 +22,7 @@ router = APIRouter(tags=["sources"])
 @router.post("/sources/preview", response_model=SourcePreviewOut)
 def preview(body: UrlIn, user: CurrentUser) -> SourcePreviewOut:
     try:
-        result = preview_source(body.url)
+        result = preview_source(normalize_source_url(body.url))
     except SourceRejected as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
     except Exception as exc:  # FeedResolutionError, network/atproto errors → unprocessable
@@ -29,33 +34,35 @@ def preview(body: UrlIn, user: CurrentUser) -> SourcePreviewOut:
 
 
 @router.get("/sources", response_model=list[SourceOut])
-def list_sources(user: CurrentUser, db: DbDep) -> list[Source]:
-    return list(
-        db.scalars(
-            select(Source)
-            .where(Source.user_id == user.id)
-            .order_by(Source.created_at.desc())
-        )
+def list_sources(user: CurrentUser, db: DbDep) -> list[SourceOut]:
+    rows = db.scalars(
+        select(Source)
+        .where(Source.user_id == user.id)
+        .order_by(Source.created_at.desc())
     )
+    return [SourceOut.from_source(s) for s in rows]
 
 
 @router.post("/sources", response_model=SourceOut, status_code=status.HTTP_201_CREATED)
-def add_source(body: UrlIn, user: CurrentUser, db: DbDep) -> Source:
+def add_source(body: UrlIn, user: CurrentUser, db: DbDep) -> SourceOut:
+    # Default a scheme-less URL to https:// before anything else, so detection, the
+    # idempotency key, storage, and the feed fetch all see the same fetchable URL.
+    url = normalize_source_url(body.url)
     # Idempotent on (user_id, input_url): re-adding returns the existing source.
     existing = db.scalar(
         select(Source).where(
-            Source.user_id == user.id, Source.input_url == body.url
+            Source.user_id == user.id, Source.input_url == url
         )
     )
     if existing is not None:
-        return existing
+        return SourceOut.from_source(existing)
 
     try:
-        source_type = detect_type(body.url)
+        source_type = detect_type(url)
     except SourceRejected as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
 
-    source = Source(user_id=user.id, type=source_type, input_url=body.url)
+    source = Source(user_id=user.id, type=source_type, input_url=url)
     db.add(source)
     db.flush()  # assign source.id before the inline first-scrape
 
@@ -68,7 +75,7 @@ def add_source(body: UrlIn, user: CurrentUser, db: DbDep) -> Source:
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             f"Couldn't read a feed from that URL: {result.error}",
         )
-    return source
+    return SourceOut.from_source(source)
 
 
 @router.delete("/sources/{source_id}", status_code=status.HTTP_204_NO_CONTENT)

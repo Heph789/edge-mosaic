@@ -10,7 +10,7 @@ from pydantic import BaseModel, EmailStr, Field
 from . import config, storage
 
 if TYPE_CHECKING:
-    from .models import User
+    from .models import Source, User
 
 
 class RequestLinkIn(BaseModel):
@@ -91,7 +91,8 @@ class UsernameAvailability(BaseModel):
 class ProfileSourceOut(BaseModel):
     """A feeder's content source as a clickable directory entry."""
 
-    type: str
+    type: str  # scraping category ('rss' | 'bluesky')
+    label: str  # granular display label (Substack/YouTube/Podcast/…)
     url: str
     title: str | None
 
@@ -169,6 +170,7 @@ class UrlIn(BaseModel):
 
 class SourcePreviewOut(BaseModel):
     type: str
+    label: str
     resolved_url: str | None
     title: str | None
     found_count: int
@@ -179,6 +181,7 @@ class SourcePreviewOut(BaseModel):
 class SourceOut(BaseModel):
     id: int
     type: str
+    label: str  # granular display label (Substack/YouTube/Podcast/…)
     input_url: str
     resolved_feed_url: str | None
     title: str | None
@@ -186,7 +189,21 @@ class SourceOut(BaseModel):
     last_success_at: datetime | None
     created_at: datetime
 
-    model_config = {"from_attributes": True}
+    @classmethod
+    def from_source(cls, source: "Source") -> "SourceOut":
+        from .sources import detect_label
+
+        return cls(
+            id=source.id,
+            type=source.type,
+            label=detect_label(source.type, source.input_url, source.resolved_feed_url),
+            input_url=source.input_url,
+            resolved_feed_url=source.resolved_feed_url,
+            title=source.title,
+            last_checked_at=source.last_checked_at,
+            last_success_at=source.last_success_at,
+            created_at=source.created_at,
+        )
 
 
 # --- subscriptions / discover ---------------------------------------------------------
@@ -204,6 +221,7 @@ class DiscoverOut(BaseModel):
     user_id: int
     username: str
     display_name: str | None
+    bio: str | None  # short context shown under the name in the directory
     platforms: list[str]
     is_subscribed: bool
     profile_image_url: str | None

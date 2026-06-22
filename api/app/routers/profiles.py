@@ -9,7 +9,7 @@ from .. import usernames
 from ..deps import CurrentUser, DbDep
 from ..models import Source, Subscription, User
 from ..schemas import ProfileSourceOut, PublicProfileOut
-from ..sources import platforms_for
+from ..sources import detect_label, platforms_for
 from ..villages import is_visible_to
 
 router = APIRouter(tags=["profiles"])
@@ -22,7 +22,13 @@ def _profile_sources(db, user_id: int) -> list[ProfileSourceOut]:
         select(Source).where(Source.user_id == user_id).order_by(Source.created_at)
     ).all()
     return [
-        ProfileSourceOut(type=s.type, url=s.input_url, title=s.title) for s in rows
+        ProfileSourceOut(
+            type=s.type,
+            label=detect_label(s.type, s.input_url, s.resolved_feed_url),
+            url=s.input_url,
+            title=s.title,
+        )
+        for s in rows
     ]
 
 

@@ -60,13 +60,14 @@ def test_subscription_list_has_platforms(client, db, make_user, auth):
     client.post("/subscriptions", json={"feeder_id": bob.id}, headers=h)
 
     listed = client.get("/subscriptions", headers=h).json()
+    # platforms are granular display labels now: rss(https://rss.ex) → "Blog", bluesky → "Bluesky".
     assert listed == [
-        {"feeder_id": bob.id, "display_name": "Bob B.", "platforms": ["bluesky", "rss"]}
+        {"feeder_id": bob.id, "display_name": "Bob B.", "platforms": ["Blog", "Bluesky"]}
     ]
 
 
 # --- discover -------------------------------------------------------------------------
-def test_discover_eligibility_and_self_exclusion(client, db, make_user, auth):
+def test_discover_eligibility_and_self_in_search(client, db, make_user, auth):
     searcher = make_user("s@example.com", "Search Person")
     visible = make_user("v@example.com", "Visible Person")  # ghost, no sources
     make_user("n@example.com", display_name=None)  # no display_name → excluded
@@ -74,8 +75,7 @@ def test_discover_eligibility_and_self_exclusion(client, db, make_user, auth):
     hits = client.get("/discover?q=Person", headers=auth(searcher)).json()
     names = {h["display_name"] for h in hits}
     assert "Visible Person" in names  # ghost is discoverable
-    assert "Search Person" not in names  # self excluded
-    assert all(h["user_id"] != searcher.id for h in hits)
+    assert "Search Person" in names  # you can find your own profile in a search
     assert next(h for h in hits if h["display_name"] == "Visible Person")["platforms"] == []
 
 
@@ -88,7 +88,7 @@ def test_discover_is_subscribed_flag_and_platforms(client, db, make_user, auth):
 
     hit = client.get("/discover?q=Builder", headers=h).json()[0]
     assert hit["is_subscribed"] is True
-    assert hit["platforms"] == ["rss"]
+    assert hit["platforms"] == ["Blog"]  # rss(https://rss.ex) → "Blog" display label
 
 
 def test_discover_escapes_like_wildcards(client, db, make_user, auth):
@@ -114,3 +114,20 @@ def test_discover_empty_query_browses_all(client, make_user, auth):
         assert resp.status_code == 200
         names = {h["display_name"] for h in resp.json()}
         assert names == {"Alice A", "Bob B"}  # all discoverable users, self excluded
+
+
+def test_discover_pagination_offset_limit(client, make_user, auth):
+    # Infinite scroll fetches the directory page by page via offset/limit; the slices must
+    # tile the full ordered list without gaps or repeats.
+    searcher = make_user("s@example.com", "Searcher")
+    for i in range(5):
+        make_user(f"u{i}@example.com", f"Person {i}")
+
+    h = auth(searcher)
+    page1 = client.get("/discover?limit=2&offset=0", headers=h).json()
+    page2 = client.get("/discover?limit=2&offset=2", headers=h).json()
+    page3 = client.get("/discover?limit=2&offset=4", headers=h).json()
+    assert [len(page1), len(page2), len(page3)] == [2, 2, 1]  # 5 people, 2 per page
+
+    ids = [r["user_id"] for r in (*page1, *page2, *page3)]
+    assert len(ids) == len(set(ids)) == 5  # no gaps, no repeats

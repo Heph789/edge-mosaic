@@ -14,7 +14,8 @@ from ..villages import village_ids_for
 
 router = APIRouter(tags=["discover"])
 
-DISCOVER_LIMIT = 50
+DISCOVER_PAGE_SIZE = 24  # rows per page; the frontend infinite-scrolls page by page
+MAX_PAGE_SIZE = 100
 
 
 def _like_escape(s: str, esc: str = "\\") -> str:
@@ -26,17 +27,20 @@ def _like_escape(s: str, esc: str = "\\") -> str:
 def discover(
     user: CurrentUser,
     db: DbDep,
-    q: str = Query("", description="name filter; empty = browse all (capped)"),
+    q: str = Query("", description="name filter; empty = browse all"),
+    offset: int = Query(0, ge=0, description="rows to skip (infinite scroll cursor)"),
+    limit: int = Query(DISCOVER_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
 ) -> list[DiscoverOut]:
     term = q.strip()
 
     # Empty q browses the whole directory (capped); a term ILIKE-filters by name.
-    conditions = [
-        User.display_name.is_not(None),
-        User.id != user.id,  # don't surface yourself
-    ]
+    conditions = [User.display_name.is_not(None)]
     if term:
+        # A search can surface yourself (so you can find/share your own profile); the
+        # default browse view still hides you to keep the focus on other people.
         conditions.append(User.display_name.ilike(f"%{_like_escape(term)}%", escape="\\"))
+    else:
+        conditions.append(User.id != user.id)  # don't surface yourself in the browse view
 
     # Visibility gate: a 'village' profile is only listed when it shares a village with the
     # viewer; 'community' profiles are always listed.
@@ -68,12 +72,15 @@ def discover(
                 User.id,
                 User.username,
                 User.display_name,
+                User.bio,
                 User.profile_image_path,
                 User.tile_image_path,
             )
             .where(*conditions)
-            .order_by(rank, User.display_name)
-            .limit(DISCOVER_LIMIT)
+            # Stable total order (rank, name, id) so offset paging never skips/repeats rows.
+            .order_by(rank, User.display_name, User.id)
+            .offset(offset)
+            .limit(limit)
         ).all()
     )
 
@@ -92,10 +99,11 @@ def discover(
             user_id=fid,
             username=username,
             display_name=name,
+            bio=bio,
             platforms=platforms.get(fid, []),
             is_subscribed=fid in subscribed,
             profile_image_url=public_url(profile_path),
             tile_image_url=public_url(tile_path),
         )
-        for fid, username, name, profile_path, tile_path in rows
+        for fid, username, name, bio, profile_path, tile_path in rows
     ]
