@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Query
-from sqlalchemy import or_, select
+from sqlalchemy import case, or_, select
 
 from ..deps import CurrentUser, DbDep
-from ..models import Subscription, User, UserVillage
+from ..models import ProfileLink, Source, Subscription, User, UserVillage
 from ..schemas import DiscoverOut
 from ..sources import platforms_for
 from ..storage import public_url
@@ -50,6 +50,18 @@ def discover(
         or_(User.visibility != "village", User.id.in_(shares_village))
     )
 
+    # Surface the most useful profiles first: feeders (have sources) > people with profile
+    # links > validated (proven-inbox) accounts > everyone else; alphabetical within a tier.
+    # Ranked in SQL so it applies *before* the cap, not just within the fetched page.
+    has_source = select(Source.id).where(Source.user_id == User.id).exists()
+    has_link = select(ProfileLink.id).where(ProfileLink.user_id == User.id).exists()
+    rank = case(
+        (has_source, 0),
+        (has_link, 1),
+        (User.verified_at.is_not(None), 2),
+        else_=3,
+    )
+
     rows = list(
         db.execute(
             select(
@@ -60,7 +72,7 @@ def discover(
                 User.tile_image_path,
             )
             .where(*conditions)
-            .order_by(User.display_name)
+            .order_by(rank, User.display_name)
             .limit(DISCOVER_LIMIT)
         ).all()
     )
