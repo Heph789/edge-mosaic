@@ -2,6 +2,7 @@
 // on a cold load. The global 401 handler lives in api.ts; this just owns app-side state.
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { api, TOKEN_KEY, type User } from "./api";
+import { setSentryUser } from "./sentry";
 
 type AuthContextValue = {
   token: string | null;
@@ -27,12 +28,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(TOKEN_KEY);
     setToken(null);
     setUser(null);
+    setSentryUser(null);
   }
 
   function login(newToken: string, newUser: User) {
     localStorage.setItem(TOKEN_KEY, newToken);
     setToken(newToken);
     setUser(newUser);
+    setSentryUser(newUser);
     setLoading(false);
   }
 
@@ -63,7 +66,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     api
       .getMe()
       .then((u) => {
-        if (!cancelled) setUser(u);
+        if (!cancelled) {
+          setUser(u);
+          setSentryUser(u);
+        }
       })
       .catch(() => {
         if (!cancelled) clearLocal();

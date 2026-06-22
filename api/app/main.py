@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from . import auth, config, storage, usernames
 from .deps import CurrentUser, DbDep
 from .models import ProfileLink, UserCity
+from .observability import init_sentry
 from .routers import discover, digest, profiles, sources, subscriptions, unsubscribe
 from .schemas import (
     GenericMessage,
@@ -28,6 +29,10 @@ from .schemas import (
 )
 
 VALID_FREQUENCIES = {"weekly", "monthly"}
+
+# Initialize Sentry before the app so the FastAPI integration attaches. Unhandled 500s are
+# captured automatically; intentional HTTPExceptions (4xx) are not reported.
+init_sentry("web")
 
 app = FastAPI(title="Edge Mosaic API")
 # The SPA lives on a separate origin (Vercel) from this API (Railway); the browser

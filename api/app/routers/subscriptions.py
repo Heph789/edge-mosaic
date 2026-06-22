@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 
+import sentry_sdk
 from fastapi import APIRouter, HTTPException, Response, status
 from sqlalchemy import func, select
 
@@ -46,6 +47,7 @@ def subscribe(body: SubscribeIn, user: CurrentUser, db: DbDep) -> SubscriptionOu
                 send_welcome_sample(db, user)
             except Exception:
                 log.exception("welcome sample failed for user %s", user.id)
+                sentry_sdk.capture_exception()
 
     platforms = platforms_for(db, [feeder.id]).get(feeder.id, [])
     return SubscriptionOut(

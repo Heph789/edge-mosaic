@@ -6,7 +6,7 @@ Slice 3: sources are real `user_id`-owned rows (no more hardcoded list).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -23,6 +23,10 @@ class SourceResult:
     new_items: int = 0
     seen_items: int = 0
     error: str | None = None
+    # The original exception, retained so the scrape *cron* can report it to Sentry with a
+    # real traceback. Deliberately not captured here: scrape_source also runs inline on
+    # `POST /sources`, where a failure is an expected, user-facing 422 — not an alert.
+    exception: BaseException | None = field(default=None, repr=False, compare=False)
 
 
 def scrape(session: Session) -> list[SourceResult]:
@@ -41,6 +45,7 @@ def scrape_source(session: Session, source: Source) -> SourceResult:
         normalized = adapter.fetch(source)
     except Exception as exc:  # isolate: a dead source returns nothing, run continues
         result.error = f"{type(exc).__name__}: {exc}"
+        result.exception = exc
         session.commit()  # still persist last_checked_at + any resolution side effects
         return result
 

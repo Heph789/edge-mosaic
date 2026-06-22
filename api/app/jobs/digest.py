@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 from datetime import date
 
+import sentry_sdk
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -22,6 +23,7 @@ from ..db import SessionLocal
 from ..digest import assemble_digest
 from ..email import send_email
 from ..models import SentDigest, Subscription, User, utcnow
+from ..observability import init_sentry
 from ..render import render_digest_html
 from ..schedule import most_recent_anchor, window_for
 
@@ -130,6 +132,14 @@ def run_digest_job(db: Session, today: date | None = None) -> dict[str, int]:
             db.rollback()
             stats["errors"] += 1
             log.error("digest send failed for user %s: %s", user.id, exc)
+            # Surface the swallowed failure — a subscriber silently not getting their
+            # digest is exactly the thing we want an alert on.
+            with sentry_sdk.new_scope() as scope:
+                scope.set_tag("job", "digest")
+                scope.set_context(
+                    "subscriber", {"id": user.id, "anchor_date": str(anchor)}
+                )
+                sentry_sdk.capture_exception(exc)
             continue
         if result is True:
             stats["sent"] += 1
@@ -142,9 +152,13 @@ def run_digest_job(db: Session, today: date | None = None) -> dict[str, int]:
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
+    init_sentry("digest")
     with SessionLocal() as db:
         stats = run_digest_job(db)
     print(f"digest job: {stats}")
+    # Cron process exits immediately; flush the background transport so captured per-user
+    # failures aren't dropped.
+    sentry_sdk.flush()
 
 
 if __name__ == "__main__":

@@ -36,6 +36,7 @@ export function useDiscover(q: string) {
 // --- me mutation ----------------------------------------------------------------------
 export function useUpdateMe(onUser?: (user: User) => void) {
   return useMutation({
+    meta: { operation: "updateMe" },
     mutationFn: (patch: MePatch) => api.updateMe(patch),
     onSuccess: (user) => onUser?.(user),
   });
@@ -44,6 +45,7 @@ export function useUpdateMe(onUser?: (user: User) => void) {
 // Image upload / removal. Both return the fresh User so the caller can sync auth context.
 export function useUploadImage(onUser?: (user: User) => void) {
   return useMutation({
+    meta: { operation: "uploadImage" },
     mutationFn: ({ kind, file }: { kind: ImageKind; file: File }) =>
       api.uploadImage(kind, file),
     onSuccess: (user) => onUser?.(user),
@@ -52,6 +54,7 @@ export function useUploadImage(onUser?: (user: User) => void) {
 
 export function useDeleteImage(onUser?: (user: User) => void) {
   return useMutation({
+    meta: { operation: "deleteImage" },
     mutationFn: (kind: ImageKind) => api.deleteImage(kind),
     onSuccess: (user) => onUser?.(user),
   });
@@ -71,6 +74,7 @@ export function useProfile(username: string | null) {
 export function useToggleFollowProfile(username: string) {
   const qc = useQueryClient();
   return useMutation({
+    meta: { operation: "toggleFollowProfile" },
     mutationFn: async ({ feederId, subscribe }: { feederId: number; subscribe: boolean }) => {
       if (subscribe) await api.subscribe(feederId);
       else await api.unsubscribeFeeder(feederId);
@@ -88,6 +92,7 @@ export function useToggleFollowProfile(username: string) {
 export function useAddSource() {
   const qc = useQueryClient();
   return useMutation({
+    meta: { operation: "addSource" },
     mutationFn: (url: string) => api.addSource(url),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: keys.sources });
@@ -100,6 +105,7 @@ export function useAddSource() {
 export function useDeleteSource() {
   const qc = useQueryClient();
   return useMutation({
+    meta: { operation: "deleteSource" },
     mutationFn: (id: number) => api.deleteSource(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: keys.sources });
@@ -115,6 +121,7 @@ export function useToggleSubscribe(q: string) {
   const qc = useQueryClient();
   const key = keys.discover(q.trim());
   return useMutation({
+    meta: { operation: "toggleSubscribe" },
     mutationFn: async ({ userId, subscribe }: { userId: number; subscribe: boolean }) => {
       if (subscribe) await api.subscribe(userId);
       else await api.unsubscribeFeeder(userId);
@@ -142,6 +149,7 @@ export function useToggleSubscribe(q: string) {
 export function useUnsubscribeFeeder() {
   const qc = useQueryClient();
   return useMutation({
+    meta: { operation: "unsubscribeFeeder" },
     mutationFn: (feederId: number) => api.unsubscribeFeeder(feederId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: keys.subscriptions });
