@@ -79,11 +79,19 @@ Railway will have created a service from the repo. Configure it:
 | `RESEND_API_KEY`| if resend | Your Resend API key (`re_...`)                                                          |
 | `EMAIL_FROM`    | if resend | Sender on the verified domain, e.g. `Edge Mosaic <digest@yourdomain.com>`               |
 
-> `PORT` is injected by Railway — **do not set it.** The Dockerfile/start command bind to it.
+> `PORT` is injected by Railway — **do not set it manually.** The start command binds to it
+> (`--port ${PORT:-8000}`) and Railway routes to that port automatically. Setting a stale `PORT`
+> or a mismatched networking *target port* causes a 502 `connection dial timeout`.
 > All other settings have sensible defaults in `api/app/config.py`; only override what's above.
 
-On deploy, the start command runs `alembic upgrade head` before the server starts, so the
-schema is created/migrated automatically against the fresh Postgres. No manual migration step.
+**Migrations run as a pre-deploy step, not in the web start command** (`railway.json` →
+`deploy.preDeployCommand: "alembic upgrade head"`). Railway runs it in a one-off instance against
+Postgres *before* the new version goes live; the web process is pure `uvicorn` so it binds
+immediately. This matters: if migrations were chained ahead of `uvicorn` (`alembic && uvicorn`)
+and the DB were briefly unreachable on boot (Railway's private network takes a few seconds to
+come up), the server would never start and every request would 502 with a dial timeout. With the
+split, a migration failure fails the deploy loudly (logs show the error, the old version keeps
+serving) instead of silently wedging startup.
 
 **Verify:** open `https://<your-api-domain>/docs` — the Swagger UI should load.
 
@@ -207,7 +215,7 @@ authed calls and magic links will break.
 ## 7. Going live — checklist
 
 - [ ] Postgres provisioned; `DATABASE_URL` referenced on api + both cron services.
-- [ ] API deployed, `/docs` loads, logs show `alembic upgrade head` ran clean.
+- [ ] API deployed, pre-deploy `alembic upgrade head` ran clean, `/health` and `/docs` both load.
 - [ ] `APP_BASE_URL`, `API_BASE_URL`, `CORS_ORIGINS` all point at the real prod domains.
 - [ ] Allowlist seeded (`import-allowlist`); a roster email can request a magic link.
 - [ ] Frontend deployed with `VITE_API_URL` → API domain; a magic-link login round-trips.
@@ -218,8 +226,9 @@ authed calls and magic links will break.
 
 ## Notes & gotchas
 
-- **Migrations:** run automatically on every API boot (`alembic upgrade head`). New migrations
-  ship by adding files under `api/alembic/versions/` — no separate deploy step.
+- **Migrations:** run as the `preDeployCommand` (`alembic upgrade head`) before each new version
+  goes live — not in the web start command. New migrations ship by adding files under
+  `api/alembic/versions/`; they apply on the next deploy with no manual step.
 - **Local media is ephemeral.** Uploaded profile/tile images are written to the container's
   `data/media/` (the `app/storage.py` seam) and are **lost on every redeploy/restart**, and
   not shared across the api + cron containers. For durable images, swap `storage.py` to object
