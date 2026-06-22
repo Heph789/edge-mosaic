@@ -31,9 +31,11 @@ RUN uv sync --frozen --no-dev --no-cache
 RUN useradd --create-home --uid 10001 appuser && chown -R appuser:appuser /app
 USER appuser
 
-# Railway injects $PORT at runtime; default to 8000 for a plain `docker run`. Alembic runs
-# on boot so a fresh Postgres is migrated before the server accepts traffic. Railway's
-# startCommand (railway.json) overrides this for the web service; the cron services set
-# their own (`python -m app.jobs.scrape` / `... digest`).
+# Web server entrypoint. Explicit `sh -c` so ${PORT:-8000} is expanded by a shell — Railway
+# runs a no-operator start command WITHOUT a shell, which would pass the literal string to
+# uvicorn. Railway injects $PORT; defaults to 8000 for a plain `docker run`. Migrations are NOT
+# run here — they run as railway.json's preDeployCommand (`alembic upgrade head`) so a slow/
+# unreachable DB on boot can't block the server from binding. The cron services override this
+# with their own command (`python -m app.jobs.scrape` / `... digest`).
 EXPOSE 8000
-CMD alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
