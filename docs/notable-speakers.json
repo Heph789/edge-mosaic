@@ -1,0 +1,440 @@
+[
+  {
+    "name": "Amanda Cassatt",
+    "email": "amanda@serotonin.co",
+    "links": [
+      {
+        "label": "Website",
+        "url": "https://amandacassatt.com"
+      },
+      {
+        "label": "Substack",
+        "url": "https://amandacassatt.substack.com"
+      },
+      {
+        "label": "GitHub",
+        "url": "https://github.com/AmandaCassatt"
+      },
+      {
+        "label": "LinkedIn",
+        "url": "https://www.linkedin.com/in/amanda-cassatt"
+      }
+    ]
+  },
+  {
+    "name": "Arielle Zuckerberg",
+    "email": null,
+    "links": [
+      {
+        "label": "X",
+        "url": "https://x.com/ariellezuck"
+      },
+      {
+        "label": "LinkedIn",
+        "url": "https://www.linkedin.com/in/ariellezuckerberg/"
+      }
+    ]
+  },
+  {
+    "name": "Bia Labate",
+    "email": null,
+    "links": [
+      {
+        "label": "Website",
+        "url": "https://www.bialabate.net/"
+      },
+      {
+        "label": "X",
+        "url": "https://x.com/bialabate"
+      },
+      {
+        "label": "YouTube",
+        "url": "https://www.youtube.com/@bialabate1591"
+      },
+      {
+        "label": "Instagram",
+        "url": "https://www.instagram.com/labatebia/"
+      },
+      {
+        "label": "LinkedIn",
+        "url": "https://www.linkedin.com/in/bia-labate-ph-d-8792a019a/"
+      }
+    ]
+  },
+  {
+    "name": "Cyan Banister",
+    "email": null,
+    "links": [
+      {
+        "label": "Website",
+        "url": "https://www.cyanbanister.com"
+      },
+      {
+        "label": "Substack",
+        "url": "https://uglyduckling.substack.com"
+      },
+      {
+        "label": "X",
+        "url": "https://x.com/cyantist"
+      },
+      {
+        "label": "GitHub",
+        "url": "https://github.com/cyantist"
+      }
+    ]
+  },
+  {
+    "name": "David Shor",
+    "email": "david@blueroseresearch.org",
+    "links": [
+      {
+        "label": "Substack",
+        "url": "https://davidshor.substack.com"
+      },
+      {
+        "label": "X",
+        "url": "https://x.com/davidshor"
+      },
+      {
+        "label": "Bluesky",
+        "url": "https://bsky.app/profile/davidshor.bsky.social"
+      },
+      {
+        "label": "GitHub",
+        "url": "https://github.com/davidshor"
+      }
+    ]
+  },
+  {
+    "name": "Devon Zuegel",
+    "email": "devon@esmeralda.org",
+    "links": [
+      {
+        "label": "Website",
+        "url": "https://devonzuegel.com/"
+      },
+      {
+        "label": "Substack",
+        "url": "https://vonzu.substack.com/"
+      },
+      {
+        "label": "X",
+        "url": "https://x.com/devonzuegel"
+      },
+      {
+        "label": "Bluesky",
+        "url": "https://bsky.app/profile/devonzuegel.com"
+      },
+      {
+        "label": "YouTube",
+        "url": "https://www.youtube.com/user/DevonMarisaZuegel"
+      },
+      {
+        "label": "Instagram",
+        "url": "https://www.instagram.com/devonzuegel/"
+      },
+      {
+        "label": "Threads",
+        "url": "https://www.threads.com/@devonzuegel"
+      },
+      {
+        "label": "GitHub",
+        "url": "https://github.com/devonzuegel"
+      },
+      {
+        "label": "Link",
+        "url": "https://clippings.devonzuegel.com/"
+      }
+    ]
+  },
+  {
+    "name": "Jeeshan Chowdhury",
+    "email": "jeeshan.chowdhury@gmail.com",
+    "links": [
+      {
+        "label": "Substack",
+        "url": "https://drjeeshanmdphd.substack.com/"
+      },
+      {
+        "label": "X",
+        "url": "https://x.com/DrJeeshanMD"
+      },
+      {
+        "label": "X (alt)",
+        "url": "https://x.com/JeeshanMDPhD"
+      },
+      {
+        "label": "GitHub",
+        "url": "https://github.com/drjeeshan"
+      },
+      {
+        "label": "LinkedIn",
+        "url": "https://www.linkedin.com/in/jeeshanchowdhury"
+      }
+    ]
+  },
+  {
+    "name": "Jonathan Anomaly",
+    "email": "anomaly101@gmail.com",
+    "links": [
+      {
+        "label": "Website",
+        "url": "https://jonathan-anomaly.com"
+      },
+      {
+        "label": "X",
+        "url": "https://x.com/JonathanAnomaly"
+      },
+      {
+        "label": "YouTube",
+        "url": "https://www.youtube.com/@jonathan-anomaly"
+      }
+    ]
+  },
+  {
+    "name": "Joscha Bach",
+    "email": null,
+    "links": [
+      {
+        "label": "Website",
+        "url": "http://bach.ai/"
+      },
+      {
+        "label": "X",
+        "url": "https://x.com/plinz"
+      },
+      {
+        "label": "Mastodon",
+        "url": "https://mastodon.social/@joscha"
+      },
+      {
+        "label": "LinkedIn",
+        "url": "https://www.linkedin.com/in/joschabach"
+      },
+      {
+        "label": "Facebook",
+        "url": "https://facebook.com/joscha.bach"
+      }
+    ]
+  },
+  {
+    "name": "Joseph Barsuglia",
+    "email": null,
+    "links": [
+      {
+        "label": "Website",
+        "url": "https://www.josephbarsuglia.com/"
+      },
+      {
+        "label": "Blog",
+        "url": "https://www.josephbarsuglia.com/blog"
+      },
+      {
+        "label": "YouTube",
+        "url": "https://www.youtube.com/@josephbarsuglia"
+      },
+      {
+        "label": "Instagram",
+        "url": "https://instagram.com/josephbarsuglia"
+      },
+      {
+        "label": "LinkedIn",
+        "url": "https://www.linkedin.com/in/josephbarsuglia"
+      },
+      {
+        "label": "Facebook",
+        "url": "https://facebook.com/joseph.barsuglia"
+      }
+    ]
+  },
+  {
+    "name": "Justin Mares",
+    "email": "jwmares@gmail.com",
+    "links": [
+      {
+        "label": "Website",
+        "url": "https://justinmares.com"
+      },
+      {
+        "label": "Substack",
+        "url": "https://justinmares.substack.com"
+      },
+      {
+        "label": "X",
+        "url": "https://x.com/jwmares"
+      },
+      {
+        "label": "Instagram",
+        "url": "https://instagram.com/justin.mares"
+      },
+      {
+        "label": "LinkedIn",
+        "url": "https://www.linkedin.com/in/justinmares"
+      }
+    ]
+  },
+  {
+    "name": "Misha Glouberman",
+    "email": "misha@glouberman.com",
+    "links": [
+      {
+        "label": "Podcast",
+        "url": "https://feeds.acast.com/public/shows/b0e660b5-a673-467e-8349-174078239145"
+      }
+    ]
+  },
+  {
+    "name": "Nathan Price",
+    "email": "nprice@buckinstitute.org",
+    "links": [
+      {
+        "label": "Academic",
+        "url": "https://hood-price.isbscience.org/"
+      },
+      {
+        "label": "LinkedIn",
+        "url": "https://www.linkedin.com/in/nathandprice/"
+      }
+    ]
+  },
+  {
+    "name": "Ori Brafman",
+    "email": null,
+    "links": [
+      {
+        "label": "Website",
+        "url": "https://oribrafman.com"
+      },
+      {
+        "label": "X",
+        "url": "https://x.com/oribrafman"
+      },
+      {
+        "label": "YouTube",
+        "url": "https://www.youtube.com/oribrafman"
+      },
+      {
+        "label": "LinkedIn",
+        "url": "https://www.linkedin.com/in/oribrafman"
+      }
+    ]
+  },
+  {
+    "name": "Philip Rosedale",
+    "email": "philip@highfidelity.io",
+    "links": [
+      {
+        "label": "Website",
+        "url": "https://www.rosedales.com"
+      },
+      {
+        "label": "Substack",
+        "url": "https://philiprosedale.substack.com"
+      },
+      {
+        "label": "Medium",
+        "url": "https://medium.com/@philiprosedale"
+      },
+      {
+        "label": "X",
+        "url": "https://x.com/philiprosedale"
+      },
+      {
+        "label": "GitHub",
+        "url": "https://github.com/philiprosedale"
+      },
+      {
+        "label": "LinkedIn",
+        "url": "https://www.linkedin.com/in/philiprosedale"
+      }
+    ]
+  },
+  {
+    "name": "Robert Scoble",
+    "email": "scobleizer@gmail.com",
+    "links": [
+      {
+        "label": "Website",
+        "url": "http://scobleizer.com"
+      },
+      {
+        "label": "X",
+        "url": "https://x.com/Scobleizer"
+      },
+      {
+        "label": "Instagram",
+        "url": "https://www.instagram.com/scobleizer"
+      },
+      {
+        "label": "Threads",
+        "url": "https://www.threads.com/@scobleizer"
+      },
+      {
+        "label": "GitHub",
+        "url": "https://github.com/scobleizer"
+      },
+      {
+        "label": "LinkedIn",
+        "url": "https://www.linkedin.com/in/scobleizer"
+      }
+    ]
+  },
+  {
+    "name": "Sophia Yen",
+    "email": null,
+    "links": [
+      {
+        "label": "X",
+        "url": "https://x.com/teenmd"
+      },
+      {
+        "label": "LinkedIn",
+        "url": "https://www.linkedin.com/in/sophiayenmd"
+      }
+    ]
+  },
+  {
+    "name": "Todd Huffman",
+    "email": null,
+    "links": [
+      {
+        "label": "Website",
+        "url": "https://www.toddhuffman.com"
+      },
+      {
+        "label": "Substack",
+        "url": "https://toddhuffman.substack.com"
+      },
+      {
+        "label": "Bluesky",
+        "url": "https://bsky.app/profile/toddhuffman.bsky.social"
+      },
+      {
+        "label": "Instagram",
+        "url": "https://www.instagram.com/toddhuffman"
+      },
+      {
+        "label": "Threads",
+        "url": "https://www.threads.com/@toddhuffman"
+      }
+    ]
+  },
+  {
+    "name": "Tom Kalil",
+    "email": null,
+    "links": [
+      {
+        "label": "Substack",
+        "url": "https://tomkalil.substack.com"
+      },
+      {
+        "label": "X",
+        "url": "https://x.com/tkalil2050"
+      },
+      {
+        "label": "LinkedIn",
+        "url": "https://www.linkedin.com/in/tom-kalil-a581"
+      }
+    ]
+  }
+]

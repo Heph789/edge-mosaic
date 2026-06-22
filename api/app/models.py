@@ -64,7 +64,10 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    email: Mapped[str] = mapped_column(String, nullable=False, unique=True)  # lowercased
+    # Nullable: notable pre-seeded ghosts may have no email — they're display-only and can't
+    # log in. Still UNIQUE; NULLs are distinct in both SQLite and Postgres, so many email-less
+    # rows coexist. Identity keys on id/username, not email.
+    email: Mapped[str | None] = mapped_column(String, nullable=True, unique=True)  # lowercased
     # Unique handle for the public profile URL (/p/{username}). Lowercased. A 'user-{id}'
     # placeholder is assigned at account creation and replaced when the user first onboards.
     # The default fills NOT NULL at INSERT; creation sites then rewrite it to 'user-{id}'.
@@ -84,6 +87,9 @@ class User(Base):
         DateTime(timezone=True), nullable=True
     )
     onboarded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Internal flag for curated public figures (pre-seeded notable speakers). Display/curation
+    # only — carries no auth meaning.
+    is_notable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     # --- Profile (onboarding artifacts) -----------------------------------------------
     bio: Mapped[str | None] = mapped_column(String, nullable=True)

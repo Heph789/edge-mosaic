@@ -2,6 +2,7 @@
 
     python -m app.cli import-allowlist [csv]  # seed allowed_emails + pre-seed named users
     python -m app.cli seed-sources [md]       # pre-seed feeders + sources from source-list.md
+    python -m app.cli seed-notable [json]     # pre-seed notable speakers + their profile links
     python -m app.cli scrape                  # fetch all real sources, dedup-insert items
 
 The digest send runs as a job entrypoint, not here: `python -m app.jobs.digest`.
@@ -22,6 +23,7 @@ from .config import API_DIR
 from .db import SessionLocal
 from .ingest import scrape
 from .seed import SOURCE_LIST_PATH, seed_sources
+from .seed_notable import NOTABLE_PATH, seed_notable_speakers
 
 
 def ensure_schema() -> None:
@@ -63,6 +65,31 @@ def cmd_seed_sources(md_arg: str | None) -> int:
     return 0
 
 
+def cmd_seed_notable(json_arg: str | None) -> int:
+    ensure_schema()
+    json_path = Path(json_arg) if json_arg else NOTABLE_PATH
+    if not json_path.exists():
+        print(f"notable list not found: {json_path}", file=sys.stderr)
+        return 1
+
+    with SessionLocal() as session:
+        stats = seed_notable_speakers(session, json_path)
+
+    print(f"Seeded from {json_path.name}:")
+    print(
+        f"  {stats.created} notables created, {stats.promoted} promoted, "
+        f"{stats.existing} already present"
+    )
+    print(
+        f"  {stats.sources_created} sources created ({stats.sources_existing} already "
+        f"present, {stats.sources_removed} removed)"
+    )
+    print(f"  {stats.links_set} profile links set ({stats.links_skipped} skipped)")
+    for w in stats.warnings:
+        print(f"  ! {w}", file=sys.stderr)
+    return 0
+
+
 def cmd_import_allowlist(csv_arg: str | None) -> int:
     ensure_schema()
     csv_path = Path(csv_arg) if csv_arg else config.ALLOWLIST_CSV_DEFAULT
@@ -90,6 +117,8 @@ def main(argv: list[str] | None = None) -> int:
     imp_p.add_argument("csv", nargs="?", default=None, help="path to roster CSV (defaults to api/input/attendees-*.csv)")
     seed_p = sub.add_parser("seed-sources", help="pre-seed feeders + sources from source-list.md")
     seed_p.add_argument("md", nargs="?", default=None, help="path to source list (defaults to docs/source-list.md)")
+    notable_p = sub.add_parser("seed-notable", help="pre-seed notable speakers + their profile links")
+    notable_p.add_argument("json", nargs="?", default=None, help="path to notable list (defaults to docs/notable-speakers.json)")
     sub.add_parser("scrape", help="fetch all real sources and store deduped items")
 
     args = parser.parse_args(argv)
@@ -97,6 +126,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_import_allowlist(args.csv)
     elif args.command == "seed-sources":
         return cmd_seed_sources(args.md)
+    elif args.command == "seed-notable":
+        return cmd_seed_notable(args.json)
     elif args.command == "scrape":
         cmd_scrape()
     return 0
