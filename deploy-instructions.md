@@ -74,7 +74,8 @@ Railway will have created a service from the repo. Configure it:
 | `DATABASE_URL`  | yes       | Reference the Postgres plugin: `${{Postgres.DATABASE_URL}}`                             |
 | `APP_BASE_URL`  | yes       | The deployed SPA origin, e.g. `https://edge-mosaic.vercel.app` (magic-link target)      |
 | `API_BASE_URL`  | yes       | This API's own public origin, e.g. `https://edge-mosaic-api.up.railway.app`             |
-| `CORS_ORIGINS`  | yes       | Comma-separated SPA origins allowed to call the API, e.g. `https://edge-mosaic.vercel.app` |
+| `CORS_ORIGINS`  | no        | Extra exact SPA origins allowed to call the API (comma-separated). Usually unneeded — see the regex note below |
+| `CORS_ORIGIN_REGEX` | no    | Override the default origin pattern. Empty string = match `CORS_ORIGINS` only                          |
 | `EMAIL_BACKEND` | no        | `console` (default, logs only) or `resend` for real delivery                           |
 | `RESEND_API_KEY`| if resend | Your Resend API key (`re_...`)                                                          |
 | `EMAIL_FROM`    | if resend | Sender on the verified domain, e.g. `Edge Mosaic <digest@yourdomain.com>`               |
@@ -82,6 +83,13 @@ Railway will have created a service from the repo. Configure it:
 > `PORT` is injected by Railway — **do not set it manually.** The start command binds to it
 > (`--port ${PORT:-8000}`) and Railway routes to that port automatically. Setting a stale `PORT`
 > or a mismatched networking *target port* causes a 502 `connection dial timeout`.
+
+> **CORS:** an origin is allowed if it's in the exact `CORS_ORIGINS` list **or** matches
+> `CORS_ORIGIN_REGEX`. The built-in default regex already covers `localhost`/`127.0.0.1` (any
+> port), `edge-mosaic.com` + any subdomain (`www`, etc.), and `edge-mosaic*.vercel.app`, so for
+> those you don't need to set anything. A blocked browser origin shows up as a `400 Disallowed
+> CORS origin` on the preflight `OPTIONS` — add the exact origin to `CORS_ORIGINS` or widen the
+> regex. (Auth is a bearer header, not cookies, so `allow_credentials` stays off.)
 > All other settings have sensible defaults in `api/app/config.py`; only override what's above.
 
 **Migrations run as a pre-deploy step, not in the web start command** (`railway.json` →
