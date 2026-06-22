@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Discover } from "../api";
 import { Avatar } from "../components/ProfileView";
+import { platformLabel } from "../components/SourcesEditor";
 import { useDiscover, useToggleSubscribe } from "../hooks/queries";
 
 // Debounce the raw input so we don't fire a /discover request on every keystroke (~300ms).
@@ -98,7 +99,7 @@ export function Platforms({ platforms }: { platforms: string[] }) {
     <span className="platforms">
       {platforms.map((p) => (
         <span key={p} className="pill">
-          {p}
+          {platformLabel(p)}
         </span>
       ))}
     </span>

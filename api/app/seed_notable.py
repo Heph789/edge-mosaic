@@ -51,13 +51,13 @@ NOTABLE_PATH = (
 )
 
 # Channel labels whose URLs are feed-bearing → stored as scraped `sources` (the RSS adapter
-# resolves Substack /feed, Medium, Apple/Acast podcasts, Mastodon, plain blogs; Bluesky via
-# its adapter). Everything else stays a display-only profile link.
+# resolves Substack /feed, Medium, Apple/Acast podcasts, Mastodon, plain blogs; Bluesky and
+# X each via their own adapter). Everything else stays a display-only profile link.
 #
 # YouTube is intentionally NOT here: YouTube blocks its feeds/videos.xml endpoint from
 # datacenter/cloud IPs (returns 404/500 for even valid channels, incl. the scraper's host),
 # so a YouTube "feeder" would just fail every scrape. It rides along as a display link.
-FEEDER_LABELS = {"Substack", "Medium", "Mastodon", "Blog", "Podcast", "Bluesky"}
+FEEDER_LABELS = {"Substack", "Medium", "Mastodon", "Blog", "Podcast", "Bluesky", "X"}
 
 
 @dataclass
@@ -114,7 +114,7 @@ def _partition_links(
     spec: NotableSpec,
 ) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
     """Split a spec's links into (sources, display_links). A feeder-labelled URL that
-    `detect_type` rejects (e.g. an X link mislabelled) falls back to a display link."""
+    `detect_type` rejects (an unsupported platform) falls back to a display link."""
     sources: list[tuple[str, str]] = []  # (source_type, url)
     display: list[tuple[str, str]] = []  # (label, url)
     for label, url in spec.links:

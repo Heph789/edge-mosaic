@@ -35,8 +35,8 @@ ALICE = {
     "email": "alice@example.com",
     "links": [
         {"label": "Substack", "url": "https://alice.substack.com"},  # feeder → source
+        {"label": "X", "url": "https://x.com/alice"},  # feeder → source (X adapter)
         {"label": "GitHub", "url": "https://github.com/alice"},  # display link
-        {"label": "X", "url": "https://x.com/alice"},  # display link
     ],
 }
 
@@ -47,27 +47,32 @@ def test_seed_creates_notable_with_source_and_links(db, tmp_path):
     user = db.scalar(select(User).where(User.email == "alice@example.com"))
     assert user is not None
     assert user.is_notable and user.verified_at is None
-    # Substack routes to a scraped source; the other two stay display links.
-    assert {s.input_url for s in db.scalars(select(Source).where(Source.user_id == user.id))} == {
-        "https://alice.substack.com"
+    # Substack + X route to scraped sources; only GitHub stays a display link.
+    sources = {
+        s.input_url: s.type
+        for s in db.scalars(select(Source).where(Source.user_id == user.id))
+    }
+    assert sources == {
+        "https://alice.substack.com": "rss",
+        "https://x.com/alice": "x",
     }
     assert {l.url for l in db.scalars(select(ProfileLink).where(ProfileLink.user_id == user.id))} == {
         "https://github.com/alice",
-        "https://x.com/alice",
     }
 
 
 def test_rerun_drops_removed_link_and_source(db, tmp_path):
     seed_notable_speakers(db, _roster(tmp_path, [ALICE]))
 
-    trimmed = {**ALICE, "links": [{"label": "X", "url": "https://x.com/alice"}]}
+    # Drop everything but the GitHub display link → both scraped sources are removed.
+    trimmed = {**ALICE, "links": [{"label": "GitHub", "url": "https://github.com/alice"}]}
     stats = seed_notable_speakers(db, _roster(tmp_path, [trimmed]))
 
     user = db.scalar(select(User).where(User.email == "alice@example.com"))
-    assert stats.sources_removed == 1
+    assert stats.sources_removed == 2  # substack + x
     assert db.scalar(select(func.count()).select_from(Source).where(Source.user_id == user.id)) == 0
     assert [l.url for l in db.scalars(select(ProfileLink).where(ProfileLink.user_id == user.id))] == [
-        "https://x.com/alice"
+        "https://github.com/alice"
     ]
 
 

@@ -64,11 +64,12 @@ def test_preview_does_not_write(client, db, make_user, auth, fake_feed):
     assert db.scalar(select(Source)) is None
 
 
-def test_preview_rejects_x(client, make_user, auth, fake_feed):
+def test_preview_accepts_x(client, make_user, auth, fake_feed):
+    # X is now a supported platform: it detects as type 'x' and previews like any source.
     h = auth(make_user("a@example.com", "Ann A."))
     r = client.post("/sources/preview", json={"url": "https://x.com/jack"}, headers=h)
-    assert r.status_code == 400
-    assert "coming soon" in r.json()["detail"].lower()
+    assert r.status_code == 200
+    assert r.json()["type"] == "x"
 
 
 def test_create_runs_inline_first_scrape(client, db, make_user, auth, fake_feed):

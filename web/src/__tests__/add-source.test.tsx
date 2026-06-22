@@ -45,7 +45,7 @@ describe("Add source (two-step preview → confirm)", () => {
     const user = userEvent.setup();
     renderWithProviders(<AppRoutes />, { path: "/profile", authed: true });
 
-    const input = await screen.findByPlaceholderText(/example\.com or @handle/i);
+    const input = await screen.findByPlaceholderText(/example\.com.*@handle/i);
     await user.type(input, "https://blog.example.com");
     await user.click(screen.getByRole("button", { name: /^Preview$/i }));
 
@@ -60,26 +60,52 @@ describe("Add source (two-step preview → confirm)", () => {
     expect(await within(list).findByText("Example Blog")).toBeInTheDocument();
   });
 
-  it("surfaces the 'coming soon' rejection for x.com inline", async () => {
+  it("previews and adds an X profile, showing the X platform pill", async () => {
+    const sources: unknown[] = [];
     server.use(
       meHandler(),
-      http.get(`${API}/sources`, () => HttpResponse.json([])),
+      http.get(`${API}/sources`, () => HttpResponse.json(sources)),
       http.post(`${API}/sources/preview`, () =>
-        HttpResponse.json({ detail: "X / Twitter support is coming soon." }, { status: 400 })
-      )
+        HttpResponse.json({
+          type: "x",
+          resolved_url: "https://x.com/jack",
+          title: "jack",
+          found_count: 3,
+          latest_title: null,
+          latest_published_at: "2026-06-20T00:00:00Z",
+        })
+      ),
+      http.post(`${API}/sources`, () => {
+        const source = {
+          id: 7,
+          type: "x",
+          input_url: "https://x.com/jack",
+          resolved_feed_url: null,
+          title: "jack",
+          last_checked_at: null,
+          last_success_at: null,
+          created_at: "2026-06-20T00:00:00Z",
+        };
+        sources.push(source);
+        return HttpResponse.json(source, { status: 201 });
+      })
     );
 
     const user = userEvent.setup();
     renderWithProviders(<AppRoutes />, { path: "/profile", authed: true });
 
-    const input = await screen.findByPlaceholderText(/example\.com or @handle/i);
+    const input = await screen.findByPlaceholderText(/example\.com.*x\.com/i);
     await user.type(input, "https://x.com/jack");
     await user.click(screen.getByRole("button", { name: /^Preview$/i }));
 
-    expect(
-      await screen.findByText(/X \/ Twitter support is coming soon/i)
-    ).toBeInTheDocument();
-    // No confirm card on a rejection.
-    expect(screen.queryByRole("button", { name: /Add source/i })).not.toBeInTheDocument();
+    // Confirm card shows the X platform label, not the raw type.
+    expect(await screen.findByText(/found 3 recent posts/i)).toBeInTheDocument();
+    expect(screen.getByText("X")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Add source/i }));
+
+    const list = await screen.findByRole("list");
+    expect(await within(list).findByText("jack")).toBeInTheDocument();
+    expect(within(list).getByText("X")).toBeInTheDocument();
   });
 });
