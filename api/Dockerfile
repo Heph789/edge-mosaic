@@ -15,16 +15,16 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# 1) Install dependencies from the lockfile FIRST, as their own cached layer, so edits to
+# 1) Install dependencies from the lockfile FIRST, as their own Docker layer, so edits to
 #    app/ source don't bust the (slow) dependency install. --no-dev drops pytest & friends.
+#    --no-cache keeps uv's download cache out of the image layer (no BuildKit cache mount,
+#    so Railway's Docker builder accepts this without a syntax directive).
 COPY pyproject.toml uv.lock ./
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-install-project --no-dev
+RUN uv sync --frozen --no-install-project --no-dev --no-cache
 
 # 2) Copy the source and install the project itself into the venv.
 COPY . .
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev --no-cache
 
 # Run as a non-root user. /app is owned by it so config.py can create data/ and data/media/
 # at import time (psycopg uses Postgres in prod, but those mkdir() calls still run).
