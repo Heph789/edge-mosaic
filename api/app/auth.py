@@ -116,7 +116,8 @@ def verify_token(db: DbSession, raw_token: str) -> VerifyResult | None:
             verified_at=now,
         )
         db.add(user)
-        db.flush()  # assign user.id
+        db.flush()  # assign user.id (and the default temp username)
+        user.username = f"user-{user.id}"  # placeholder; user picks a real one at onboarding
         assign_default_village(db, user)  # every new user joins the default village
     elif user.verified_at is None:
         user.verified_at = now  # pre-seeded ghost logging in for the first time

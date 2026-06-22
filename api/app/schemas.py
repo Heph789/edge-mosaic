@@ -40,6 +40,7 @@ class UserOut(BaseModel):
 
     id: int
     email: str
+    username: str
     display_name: str | None
     digest_frequency: str
     digest_paused: bool
@@ -60,6 +61,7 @@ class UserOut(BaseModel):
         return cls(
             id=user.id,
             email=user.email,
+            username=user.username,
             display_name=user.display_name,
             digest_frequency=user.digest_frequency,
             digest_paused=user.digest_paused,
@@ -81,6 +83,11 @@ class VerifyOut(BaseModel):
     user: UserOut
 
 
+class UsernameAvailability(BaseModel):
+    valid: bool  # passes the format rules
+    available: bool  # well-formed AND not taken by another user
+
+
 class ProfileSourceOut(BaseModel):
     """A feeder's content source as a clickable directory entry."""
 
@@ -93,6 +100,7 @@ class PublicProfileOut(BaseModel):
     """Another user's profile as seen in the Directory (private fields omitted)."""
 
     id: int
+    username: str
     display_name: str | None
     bio: str | None
     contact_email: str | None  # public contact only; phone stays private
@@ -115,6 +123,7 @@ class PublicProfileOut(BaseModel):
     ) -> "PublicProfileOut":
         return cls(
             id=user.id,
+            username=user.username,
             display_name=user.display_name,
             bio=user.bio,
             contact_email=user.contact_email,
@@ -134,6 +143,10 @@ class UpdateMeIn(BaseModel):
 
     display_name: str | None = Field(
         default=None, min_length=1, max_length=config.DISPLAY_NAME_MAX_CHARS
+    )
+    # Format + uniqueness validated in the endpoint (see app/usernames.py).
+    username: str | None = Field(
+        default=None, min_length=config.USERNAME_MIN_CHARS, max_length=config.USERNAME_MAX_CHARS
     )
     digest_frequency: str | None = None
     digest_paused: bool | None = None
@@ -189,6 +202,7 @@ class SubscriptionOut(BaseModel):
 
 class DiscoverOut(BaseModel):
     user_id: int
+    username: str
     display_name: str | None
     platforms: list[str]
     is_subscribed: bool

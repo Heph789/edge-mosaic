@@ -58,11 +58,29 @@ export function useDeleteImage(onUser?: (user: User) => void) {
 }
 
 // --- public profile -------------------------------------------------------------------
-export function useProfile(id: number | null) {
+export function useProfile(username: string | null) {
   return useQuery({
-    queryKey: ["profile", id] as const,
-    queryFn: () => api.getProfile(id as number),
-    enabled: id != null,
+    queryKey: ["profile", username] as const,
+    queryFn: () => api.getProfileByUsername(username as string),
+    enabled: username != null,
+  });
+}
+
+// Follow toggle for the standalone /p/{username} page. Unlike useToggleSubscribe (which is
+// wired to the discover-list cache), this just re-fetches the profile after the change.
+export function useToggleFollowProfile(username: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ feederId, subscribe }: { feederId: number; subscribe: boolean }) => {
+      if (subscribe) await api.subscribe(feederId);
+      else await api.unsubscribeFeeder(feederId);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["profile", username] });
+      qc.invalidateQueries({ queryKey: keys.subscriptions });
+      qc.invalidateQueries({ queryKey: ["discover"] });
+      qc.invalidateQueries({ queryKey: keys.digestPreview });
+    },
   });
 }
 

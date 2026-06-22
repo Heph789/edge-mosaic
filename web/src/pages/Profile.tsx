@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { ApiError, type Link, type Visibility } from "../api";
 import { useAuth } from "../auth";
 import { useUpdateMe } from "../hooks/queries";
@@ -31,6 +31,14 @@ export function Profile() {
         </button>
       </div>
       <p className="muted small">{user?.email}</p>
+      {user && (
+        <p className="muted small">
+          Profile:{" "}
+          <RouterLink to={`/p/${user.username}`}>
+            edge-mosaic.com/p/{user.username}
+          </RouterLink>
+        </p>
+      )}
       {user && user.villages.length > 0 && (
         <p className="muted small">Village: {user.villages.join(", ")}</p>
       )}

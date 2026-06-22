@@ -91,6 +91,7 @@ def import_allowlist(db: DbSession, csv_path: Path) -> ImportStats:
                     user = User(email=email, display_name=name)
                     db.add(user)
                     db.flush()  # assign user.id for village membership
+                    user.username = f"user-{user.id}"  # canonical placeholder handle
                     assign_default_village(db, user)
                     stats.seeded += 1
 

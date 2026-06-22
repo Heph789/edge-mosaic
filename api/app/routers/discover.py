@@ -54,6 +54,7 @@ def discover(
         db.execute(
             select(
                 User.id,
+                User.username,
                 User.display_name,
                 User.profile_image_path,
                 User.tile_image_path,
@@ -77,11 +78,12 @@ def discover(
     return [
         DiscoverOut(
             user_id=fid,
+            username=username,
             display_name=name,
             platforms=platforms.get(fid, []),
             is_subscribed=fid in subscribed,
             profile_image_url=public_url(profile_path),
             tile_image_url=public_url(tile_path),
         )
-        for fid, name, profile_path, tile_path in rows
+        for fid, username, name, profile_path, tile_path in rows
     ]

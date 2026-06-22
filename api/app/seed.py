@@ -101,6 +101,7 @@ def seed_sources(session: Session, path: Path | None = None) -> SeedStats:
             user = User(email=email, display_name=spec.name)
             session.add(user)
             session.flush()  # assign user.id for the sources below
+            user.username = f"user-{user.id}"  # canonical placeholder handle
             assign_default_village(session, user)
             stats.feeders_created += 1
         else:

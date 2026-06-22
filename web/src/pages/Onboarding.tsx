@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ApiError, type Link, type MePatch, type Visibility } from "../api";
+import { api, ApiError, type Link, type MePatch, type Visibility } from "../api";
 import { useAuth } from "../auth";
 import { useUpdateMe } from "../hooks/queries";
 import {
@@ -26,6 +26,8 @@ export function Onboarding() {
 
   // Local form state for the text/list fields, seeded from the current user.
   const [name, setName] = useState(user?.display_name ?? "");
+  const [username, setUsername] = useState(user?.username ?? "");
+  const usernameStatus = useUsernameAvailability(username);
   const [bio, setBio] = useState(user?.bio ?? "");
   const [cities, setCities] = useState<string[]>(user?.cities ?? []);
   const [contactEmail, setContactEmail] = useState(user?.contact_email ?? "");
@@ -52,11 +54,25 @@ export function Onboarding() {
     switch (STEPS[step]) {
       case "Name": {
         const trimmed = name.trim();
+        const handle = username.trim().toLowerCase();
         if (!trimmed) {
           setError("Please enter a display name.");
           return;
         }
-        return saveAndNext({ display_name: trimmed });
+        if (!handle) {
+          setError("Please choose a username.");
+          return;
+        }
+        if (usernameStatus === "invalid") {
+          setError("Usernames are 3–30 characters: letters, numbers, - or _.");
+          return;
+        }
+        if (usernameStatus === "taken") {
+          setError("That username is already taken.");
+          return;
+        }
+        // A still-"checking" username is re-validated server-side (409/422 surfaces here).
+        return saveAndNext({ display_name: trimmed, username: handle });
       }
       case "About you":
         return saveAndNext({
@@ -100,18 +116,32 @@ export function Onboarding() {
 
         <div className="wizard-body stack">
           {STEPS[step] === "Name" && (
-            <label className="field">
-              <span>Display name</span>
-              <input
-                autoFocus
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Jane S."
-              />
-              <span className="muted small">
-                Shown on your digests and in the Directory.
-              </span>
-            </label>
+            <>
+              <label className="field">
+                <span>Display name</span>
+                <input
+                  autoFocus
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Jane S."
+                />
+                <span className="muted small">
+                  Shown on your digests and in the Directory.
+                </span>
+              </label>
+              <label className="field">
+                <span>Username</span>
+                <input
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="janes"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                />
+                <UsernameHint username={username} status={usernameStatus} />
+              </label>
+            </>
           )}
 
           {STEPS[step] === "About you" && (
@@ -196,5 +226,54 @@ export function Onboarding() {
         </div>
       </div>
     </div>
+  );
+}
+
+type UsernameStatus = "idle" | "checking" | "ok" | "taken" | "invalid";
+
+// Debounced live availability check for the chosen handle. The backend treats the user's
+// own current username as available, so re-saving the seeded value won't read as "taken".
+function useUsernameAvailability(username: string): UsernameStatus {
+  const [status, setStatus] = useState<UsernameStatus>("idle");
+  useEffect(() => {
+    const handle = username.trim().toLowerCase();
+    if (!handle) {
+      setStatus("idle");
+      return;
+    }
+    setStatus("checking");
+    const id = setTimeout(async () => {
+      try {
+        const r = await api.checkUsername(handle);
+        setStatus(!r.valid ? "invalid" : r.available ? "ok" : "taken");
+      } catch {
+        setStatus("idle"); // network hiccup → let the server validate on submit
+      }
+    }, 400);
+    return () => clearTimeout(id);
+  }, [username]);
+  return status;
+}
+
+function UsernameHint({
+  username,
+  status,
+}: {
+  username: string;
+  status: UsernameStatus;
+}) {
+  const handle = username.trim().toLowerCase();
+  if (status === "ok")
+    return <span className="success small">edge-mosaic.com/p/{handle} is available</span>;
+  if (status === "taken")
+    return <span className="error small">That username is already taken.</span>;
+  if (status === "invalid")
+    return (
+      <span className="error small">3–30 characters: letters, numbers, - or _.</span>
+    );
+  if (status === "checking")
+    return <span className="muted small">Checking…</span>;
+  return (
+    <span className="muted small">Your profile lives at edge-mosaic.com/p/your-handle.</span>
   );
 }

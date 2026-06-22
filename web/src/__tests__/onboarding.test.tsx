@@ -7,12 +7,23 @@ import { AppRoutes } from "../routes";
 import { server } from "./server";
 import { API, renderWithProviders, testUser } from "./utils";
 
-// A not-yet-onboarded user; PATCH /me echoes the patch back merged onto the user.
-const freshUser: User = { ...testUser, display_name: null, onboarded: false };
+// A not-yet-onboarded user: display_name unset, username still the auto placeholder.
+const freshUser: User = {
+  ...testUser,
+  username: "user-1",
+  display_name: null,
+  onboarded: false,
+};
+
+// Every username the wizard checks is reported free.
+const availableHandler = http.get(`${API}/usernames/:username/available`, () =>
+  HttpResponse.json({ valid: true, available: true })
+);
 
 function wizardHandlers() {
   let current: User = { ...freshUser };
   return [
+    availableHandler,
     http.get(`${API}/me`, () => HttpResponse.json(current)),
     http.patch(`${API}/me`, async ({ request }) => {
       const patch = (await request.json()) as Record<string, unknown>;
@@ -30,10 +41,11 @@ function wizardHandlers() {
 }
 
 describe("Onboarding wizard", () => {
-  it("walks the steps, saving the name then enrichment fields", async () => {
+  it("walks the steps, saving the name + username then enrichment fields", async () => {
     const patches: Record<string, unknown>[] = [];
     let current: User = { ...freshUser };
     server.use(
+      availableHandler,
       http.get(`${API}/me`, () => HttpResponse.json(current)),
       http.patch(`${API}/me`, async ({ request }) => {
         const patch = (await request.json()) as Record<string, unknown>;
@@ -53,9 +65,12 @@ describe("Onboarding wizard", () => {
     const user = userEvent.setup();
     renderWithProviders(<AppRoutes />, { path: "/onboarding", authed: true });
 
-    // Step 1 — name is required.
+    // Step 1 — display name + username are required.
     expect(await screen.findByText(/Step 1 of 6/i)).toBeInTheDocument();
     await user.type(screen.getByPlaceholderText("Jane S."), "Chase B.");
+    const handle = screen.getByPlaceholderText("janes");
+    await user.clear(handle);
+    await user.type(handle, "chaseb");
     await user.click(screen.getByRole("button", { name: /Continue/i }));
 
     // Step 2 — About: fill the bio and advance.
@@ -65,8 +80,8 @@ describe("Onboarding wizard", () => {
 
     expect(await screen.findByText(/Step 3 of 6/i)).toBeInTheDocument();
 
-    // First PATCH set the display name; the second saved the bio.
-    expect(patches[0]).toEqual({ display_name: "Chase B." });
+    // First PATCH set the display name + chosen username; the second saved the bio.
+    expect(patches[0]).toEqual({ display_name: "Chase B.", username: "chaseb" });
     expect(patches[1]).toMatchObject({ bio: "Builder." });
   });
 
@@ -80,6 +95,20 @@ describe("Onboarding wizard", () => {
 
     expect(await screen.findByText(/Please enter a display name/i)).toBeInTheDocument();
     // Still on step 1.
+    expect(screen.getByText(/Step 1 of 6/i)).toBeInTheDocument();
+  });
+
+  it("requires a username before leaving step 1", async () => {
+    server.use(...wizardHandlers());
+    const user = userEvent.setup();
+    renderWithProviders(<AppRoutes />, { path: "/onboarding", authed: true });
+
+    await screen.findByText(/Step 1 of 6/i);
+    await user.type(screen.getByPlaceholderText("Jane S."), "Chase B.");
+    await user.clear(screen.getByPlaceholderText("janes"));
+    await user.click(screen.getByRole("button", { name: /Continue/i }));
+
+    expect(await screen.findByText(/Please choose a username/i)).toBeInTheDocument();
     expect(screen.getByText(/Step 1 of 6/i)).toBeInTheDocument();
   });
 });

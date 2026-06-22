@@ -10,6 +10,7 @@ export const API = "http://localhost:8000";
 export const testUser: User = {
   id: 1,
   email: "jane@example.com",
+  username: "janes",
   display_name: "Jane S.",
   digest_frequency: "weekly",
   digest_paused: false,

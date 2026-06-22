@@ -13,7 +13,7 @@ from fastapi import FastAPI, File, Header, HTTPException, Path, UploadFile, stat
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from . import auth, config, storage
+from . import auth, config, storage, usernames
 from .deps import CurrentUser, DbDep
 from .models import ProfileLink, UserCity
 from .routers import discover, digest, profiles, sources, subscriptions, unsubscribe
@@ -21,6 +21,7 @@ from .schemas import (
     GenericMessage,
     RequestLinkIn,
     UpdateMeIn,
+    UsernameAvailability,
     UserOut,
     VerifyIn,
     VerifyOut,
@@ -98,6 +99,18 @@ def get_me(user: CurrentUser) -> UserOut:
     return UserOut.from_user(user)
 
 
+@app.get("/usernames/{username}/available", response_model=UsernameAvailability)
+def username_available(
+    username: Annotated[str, Path()], user: CurrentUser, db: DbDep
+) -> UsernameAvailability:
+    """Live onboarding feedback: is this handle well-formed and free? The caller's own
+    current username counts as available so re-saving it isn't flagged as taken."""
+    normalized = usernames.normalize(username)
+    valid = usernames.is_valid(normalized)
+    available = valid and usernames.is_available(db, normalized, exclude_id=user.id)
+    return UsernameAvailability(valid=valid, available=available)
+
+
 def _clean_optional(value: str) -> str | None:
     """Trim a free-text field; an empty string clears it (→ NULL)."""
     return value.strip() or None
@@ -125,6 +138,15 @@ def update_me(body: UpdateMeIn, user: CurrentUser, db: DbDep) -> UserOut:
             )
         user.display_name = name
         user.onboarded = True  # setting a display name completes onboarding
+    if body.username is not None:
+        username = usernames.normalize(body.username)
+        if not usernames.is_valid(username):
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY, "invalid username"
+            )
+        if not usernames.is_available(db, username, exclude_id=user.id):
+            raise HTTPException(status.HTTP_409_CONFLICT, "username taken")
+        user.username = username
     if body.digest_frequency is not None:
         if body.digest_frequency not in VALID_FREQUENCIES:
             raise HTTPException(

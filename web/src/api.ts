@@ -18,6 +18,7 @@ export type ProfileSource = { type: string; url: string; title: string | null };
 export type User = {
   id: number;
   email: string;
+  username: string;
   display_name: string | null;
   digest_frequency: DigestFrequency;
   digest_paused: boolean;
@@ -36,6 +37,7 @@ export type User = {
 
 export type PublicProfile = {
   id: number;
+  username: string;
   display_name: string | null;
   bio: string | null;
   contact_email: string | null;
@@ -49,6 +51,8 @@ export type PublicProfile = {
 };
 
 export type VerifyResult = { session_token: string; user: User };
+
+export type UsernameAvailability = { valid: boolean; available: boolean };
 
 export type SourcePreview = {
   type: string;
@@ -78,6 +82,7 @@ export type Subscription = {
 
 export type Discover = {
   user_id: number;
+  username: string;
   display_name: string | null;
   platforms: string[];
   is_subscribed: boolean;
@@ -117,6 +122,7 @@ export type DigestPreview = {
 
 export type MePatch = {
   display_name?: string;
+  username?: string;
   digest_frequency?: DigestFrequency;
   digest_paused?: boolean;
   bio?: string;
@@ -213,7 +219,12 @@ export const api = {
     request<User>(`/me/images/${kind}`, { method: "DELETE" }),
 
   // --- public profile ---
-  getProfile: (id: number) => request<PublicProfile>(`/users/${id}`),
+  getProfileByUsername: (username: string) =>
+    request<PublicProfile>(`/users/by-username/${encodeURIComponent(username)}`),
+  checkUsername: (username: string) =>
+    request<UsernameAvailability>(
+      `/usernames/${encodeURIComponent(username)}/available`
+    ),
 
   // --- sources ---
   previewSource: (url: string) =>

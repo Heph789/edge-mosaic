@@ -65,10 +65,16 @@ def client():
 
 @pytest.fixture
 def make_user(db):
-    """Factory: create a user. Given a display_name → treated as onboarded."""
+    """Factory: create a user. Given a display_name → treated as onboarded.
+
+    username is NOT NULL + unique; default it to a valid, unique handle derived from the
+    (unique) email when not supplied, so callers that don't care about it still work."""
+    import re
+
     from app.models import User
 
     def _make(email, display_name=None, **kw):
+        kw.setdefault("username", "u" + re.sub(r"[^a-z0-9]", "", email.lower())[:29])
         user = User(
             email=email,
             display_name=display_name,

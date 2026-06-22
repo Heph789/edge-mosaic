@@ -35,6 +35,12 @@ def new_unsubscribe_token() -> str:
     return secrets.token_urlsafe(24)
 
 
+def new_username_placeholder() -> str:
+    """Temp handle so the NOT NULL username is satisfied at INSERT, before the row has an
+    id. Creation sites overwrite it with the canonical 'user-{id}' once the id is assigned."""
+    return f"pending-{secrets.token_hex(8)}"
+
+
 class Base(DeclarativeBase):
     pass
 
@@ -59,6 +65,12 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String, nullable=False, unique=True)  # lowercased
+    # Unique handle for the public profile URL (/p/{username}). Lowercased. A 'user-{id}'
+    # placeholder is assigned at account creation and replaced when the user first onboards.
+    # The default fills NOT NULL at INSERT; creation sites then rewrite it to 'user-{id}'.
+    username: Mapped[str] = mapped_column(
+        String, nullable=False, unique=True, default=new_username_placeholder
+    )
     display_name: Mapped[str | None] = mapped_column(String, nullable=True)
     digest_frequency: Mapped[str] = mapped_column(
         String, nullable=False, default="weekly"

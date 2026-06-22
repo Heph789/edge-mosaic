@@ -9,6 +9,7 @@ import { Onboarding } from "./pages/Onboarding";
 import { Directory } from "./pages/Directory";
 import { Digest } from "./pages/Digest";
 import { Profile } from "./pages/Profile";
+import { PublicProfile } from "./pages/PublicProfile";
 
 export function AppRoutes() {
   return (
@@ -29,6 +30,7 @@ export function AppRoutes() {
             <Route path="directory" element={<Directory />} />
             <Route path="digest" element={<Digest />} />
             <Route path="profile" element={<Profile />} />
+            <Route path="p/:username" element={<PublicProfile />} />
           </Route>
         </Route>
       </Route>

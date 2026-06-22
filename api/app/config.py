@@ -93,6 +93,9 @@ KIND_SHORT_MAX_CHARS = 1500
 MAGIC_LINK_TTL_MINUTES = 15
 SESSION_TTL_DAYS = 30
 DISPLAY_NAME_MAX_CHARS = 50
+# Public-profile handle (/p/{username}). See app/usernames.py for the format rules.
+USERNAME_MIN_CHARS = 3
+USERNAME_MAX_CHARS = 30
 
 # --- Profile (onboarding artifacts) ---------------------------------------------------
 BIO_MAX_CHARS = 280

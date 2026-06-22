@@ -133,6 +133,90 @@ def test_verify_assigns_default_village(client, db, sent_emails):
     assert len(members) == 1
 
 
+def test_verify_assigns_placeholder_username(client, db, sent_emails):
+    import re
+
+    from app.models import AllowedEmail
+
+    db.add(AllowedEmail(email="handle@example.com", name="Han D."))
+    db.commit()
+    client.post("/auth/request-link", json={"email": "handle@example.com"})
+    token = re.search(r"token=([^\s&\"]+)", sent_emails[-1]["text"]).group(1)
+
+    r = client.post("/auth/verify", json={"token": token})
+    assert r.status_code == 200
+    user = db.scalar(select(User).where(User.email == "handle@example.com"))
+    # Born with the canonical 'user-{id}' placeholder, surfaced on the user payload.
+    assert r.json()["user"]["username"] == f"user-{user.id}"
+
+
+def test_patch_me_sets_and_normalizes_username(client, make_user, auth):
+    user = make_user("u1@example.com", display_name="U1")
+    r = client.patch("/me", json={"username": "  CoolHandle  "}, headers=auth(user))
+    assert r.status_code == 200, r.text
+    assert r.json()["username"] == "coolhandle"  # trimmed + lowercased
+
+
+def test_patch_me_rejects_taken_username(client, make_user, auth):
+    make_user("taken@example.com", display_name="T", username="taken")
+    me = make_user("u2@example.com", display_name="U2")
+    r = client.patch("/me", json={"username": "Taken"}, headers=auth(me))
+    assert r.status_code == 409
+
+
+def test_patch_me_rejects_invalid_username(client, make_user, auth):
+    me = make_user("u3@example.com", display_name="U3")
+    # Too short / bad chars / leading hyphen all fail the format rules.
+    for bad in ["ab", "has space", "-leads", "way" * 20]:
+        r = client.patch("/me", json={"username": bad}, headers=auth(me))
+        assert r.status_code == 422, f"{bad!r} -> {r.status_code}"
+
+
+def test_username_availability(client, make_user, auth):
+    make_user("owner@example.com", display_name="Owner", username="owner")
+    me = make_user("u4@example.com", display_name="U4", username="myhandle")
+    h = auth(me)
+
+    assert client.get("/usernames/owner/available", headers=h).json() == {
+        "valid": True,
+        "available": False,
+    }
+    assert client.get("/usernames/freeone/available", headers=h).json() == {
+        "valid": True,
+        "available": True,
+    }
+    # The caller's own handle reads as available (re-saving it isn't a conflict).
+    assert client.get("/usernames/myhandle/available", headers=h).json()["available"] is True
+    # Malformed → not valid (and therefore not available).
+    assert client.get("/usernames/ab/available", headers=h).json() == {
+        "valid": False,
+        "available": False,
+    }
+
+
+def test_public_profile_by_username(client, db, make_user, auth):
+    me = make_user("viewer@example.com", display_name="Viewer", username="viewer")
+    shown = make_user(
+        "shown2@example.com", display_name="Shown", username="shown", visibility="community"
+    )
+    hidden = make_user(
+        "hidden2@example.com", display_name="Hidden", username="hidden", visibility="village"
+    )
+    h = auth(me)
+
+    r = client.get("/users/by-username/shown", headers=h)
+    assert r.status_code == 200
+    assert r.json()["username"] == "shown"
+    # village-only stranger → 404 (don't reveal existence), same gating as the id route
+    assert client.get("/users/by-username/hidden", headers=h).status_code == 404
+    assert client.get("/users/by-username/nobody", headers=h).status_code == 404
+
+    assign_default_village(db, me)
+    assign_default_village(db, hidden)
+    db.commit()
+    assert client.get("/users/by-username/hidden", headers=h).status_code == 200
+
+
 def test_assign_default_village_is_idempotent(db, make_user):
     user = make_user("f@example.com", display_name="F")
     assign_default_village(db, user)
