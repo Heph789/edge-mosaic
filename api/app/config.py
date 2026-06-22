@@ -132,13 +132,26 @@ APP_BASE_URL = os.environ.get("APP_BASE_URL", "http://localhost:5173")
 API_BASE_URL = os.environ.get("API_BASE_URL", "http://localhost:8000")
 
 # CORS (Slice 5): the SPA is a separate origin, so the browser preflights authed calls.
-# Comma-separated allowlist; local dev defaults to the Vite dev server. Prod sets this to
-# the Vercel domain. allow_credentials stays False — auth is a bearer header, not cookies.
+# Comma-separated exact allowlist; local dev defaults to the Vite dev server. allow_credentials
+# stays False — auth is a bearer header, not cookies. An origin is allowed if it's in this exact
+# list OR matches CORS_ORIGIN_REGEX below, so prod usually needs neither override.
 CORS_ORIGINS = [
     o.strip()
     for o in os.environ.get("CORS_ORIGINS", "http://localhost:5173").split(",")
     if o.strip()
 ]
+
+# Pattern form of the allowlist (Starlette `allow_origin_regex`) so we don't have to enumerate
+# every origin: localhost/127.0.0.1 on any port (dev), the edge-mosaic.com apex and any
+# subdomain (www, etc.), and this project's Vercel prod/preview URLs. Matched with `fullmatch`,
+# so each alternative must consume the whole origin — `…edge-mosaic.com.evil.com` won't match.
+# Override via CORS_ORIGIN_REGEX (set it empty to disable regex matching and use the list only).
+CORS_ORIGIN_REGEX = os.environ.get(
+    "CORS_ORIGIN_REGEX",
+    r"http://(localhost|127\.0\.0\.1)(:\d+)?"
+    r"|https://([a-z0-9-]+\.)*edge-mosaic\.com"
+    r"|https://edge-mosaic[a-z0-9-]*\.vercel\.app",
+) or None
 
 # Default allowlist roster (real attendee PII — gitignored, never read into the repo).
 ALLOWLIST_CSV_DEFAULT = next(
