@@ -1,0 +1,15 @@
+# Keep the build context (and image) small and free of dev/local-only artifacts.
+.venv/
+data/            # local SQLite db, uploaded media, generated digest output
+input/           # gitignored attendee PII CSVs
+.env
+.env.local
+*.db
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+dist/
+build/
+.DS_Store
+.git/

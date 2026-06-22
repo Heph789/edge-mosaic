@@ -1,7 +1,7 @@
 """CSV allowlist import (§2 / slice-2-auth.md).
 
-Defensive parse of a roster we don't own. Fixed headers:
-  First Name, Last Name, Email, Telegram, Role, Organization, Residence, Age, Gender
+Defensive parse of a roster we don't own. Only three columns are read (exact header
+names) — First Name, Last Name, Email; any other columns the export carries are ignored.
 Any cell may be `*` (anonymity marker) — treated as absent.
 
 Behaviour:
