@@ -15,7 +15,7 @@ Architecture is split-origin:
                 │   api  (Dockerfile)  ──▶  Postgres (Railway plugin)              │
                 │     ▲                                                            │
                 │     │ shares the SAME image + DATABASE_URL                       │
-                │   cron: scrape  (daily — fetch RSS/Bluesky into items)           │
+                │   cron: scrape  (daily — fetch RSS/Bluesky/X into items)         │
                 │   cron: digest  (daily — assemble + email per-subscriber digest) │
                 │                                                                  │
                 └──────────────────────────────────────────────────────────────────┘
@@ -79,6 +79,9 @@ Railway will have created a service from the repo. Configure it:
 | `EMAIL_BACKEND` | no        | `console` (default, logs only) or `resend` for real delivery                           |
 | `RESEND_API_KEY`| if resend | Your Resend API key (`re_...`)                                                          |
 | `EMAIL_FROM`    | if resend | Sender on the verified domain, e.g. `Edge Mosaic <digest@yourdomain.com>`               |
+| `X_BEARER_TOKEN`| for X sources | X API v2 Bearer token. **Also set it on the `scrape` cron** (that's what fetches). Without it, X sources fail gracefully at scrape — other sources unaffected. ⚠️ X bills ~$0.005/tweet read. |
+| `X_API_BASE`    | no        | X API base URL (default `https://api.twitter.com/2`); override only for a proxy endpoint |
+| `X_FEED_LIMIT`  | no        | Tweets fetched per X API request, 5–100 (default `10`)                                  |
 
 > `PORT` is injected by Railway — **do not set it manually.** The start command binds to it
 > (`--port ${PORT:-8000}`) and Railway routes to that port automatically. Setting a stale `PORT`
@@ -118,7 +121,7 @@ one-shot command instead of the web server. Create each one:
 
 | Service  | Start command                | Suggested cron (UTC) | Needs                                   |
 | -------- | ---------------------------- | -------------------- | --------------------------------------- |
-| `scrape` | `python -m app.jobs.scrape`  | `0 6 * * *` (06:00)  | `DATABASE_URL`                          |
+| `scrape` | `python -m app.jobs.scrape`  | `0 6 * * *` (06:00)  | `DATABASE_URL`, `X_BEARER_TOKEN` (if scraping X) |
 | `digest` | `python -m app.jobs.digest`  | `0 13 * * *` (13:00) | `DATABASE_URL`, `EMAIL_*`, `APP/API_BASE_URL` |
 
 Schedule **scrape before digest** so each day's digest reflects the morning's fresh items.
@@ -199,6 +202,18 @@ someone, delete their `allowed_emails` row directly (e.g. via `railway connect` 
 > command, same idempotent result — the SSH-paste flow above just keeps the PII off your laptop's
 > shell history and avoids exposing the DB publicly.
 
+**Notable speakers (curated profiles + feeders):** same SSH-paste flow, with the JSON roster
+instead of a CSV. The roster lives in the gitignored `data/` tree (not in the image), so it must
+be seeded by an operator:
+```bash
+cat > /tmp/notable-speakers.json   # paste the roster JSON, then Ctrl-D
+python -m app.cli seed-notable /tmp/notable-speakers.json
+```
+Idempotent and declarative — re-running reconciles each notable's links/sources to the roster and
+prunes ghosts dropped from it. Feed-bearing links (Substack, Bluesky, **X**, …) become scraped
+`sources`; the rest stay display-only profile links. The X feeders won't scrape until
+`X_BEARER_TOKEN` is set (see §2).
+
 ---
 
 ## 6. Frontend (SPA)
@@ -226,6 +241,8 @@ authed calls and magic links will break.
 - [ ] API deployed, pre-deploy `alembic upgrade head` ran clean, `/health` and `/docs` both load.
 - [ ] `APP_BASE_URL`, `API_BASE_URL`, `CORS_ORIGINS` all point at the real prod domains.
 - [ ] Allowlist seeded (`import-allowlist`); a roster email can request a magic link.
+- [ ] Notable speakers seeded (`seed-notable`) so curated feeders/sources (incl. X) exist.
+- [ ] `X_BEARER_TOKEN` set on **both** api + `scrape` cron — only if scraping X sources (without it they fail gracefully). ⚠️ enabling it starts billing ~$0.005/tweet read.
 - [ ] Frontend deployed with `VITE_API_URL` → API domain; a magic-link login round-trips.
 - [ ] `scrape` cron runs and inserts items (check logs / the discover feed).
 - [ ] `digest` cron runs; with `EMAIL_BACKEND=resend`, a test subscriber receives mail.
@@ -245,5 +262,11 @@ authed calls and magic links will break.
   Railway dashboard, never bake them into the image.
 - **One image, three roles:** api/scrape/digest share the build. A code change redeploys all
   three; keep their env vars in sync (Railway shared variables help here).
+- **X sources are metered.** Unlike RSS/Bluesky (free), X bills per post read (~$0.005/tweet).
+  The adapter minimizes this — it resolves each handle→id once (cached on `sources.external_id`)
+  and pulls only tweets newer than `sources.cursor` (`since_id`), so steady-state cost ≈ new
+  tweets only. But the *first* scrape of each X source pays for its initial pull (≤`X_FEED_LIMIT`
+  tweets). If you seed the notable roster's X feeders, expect a small one-time charge on the next
+  scrape. Leave `X_BEARER_TOKEN` unset to keep X sources from scraping at all.
 - **Builder switched to Docker:** `railway.json` now uses `DOCKERFILE` (was Nixpacks). The
   `api/Procfile` is now only a local/Heroku-style convenience and is unused by Railway.
