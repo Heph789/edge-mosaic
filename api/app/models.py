@@ -306,10 +306,14 @@ class Source(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
-    type: Mapped[str] = mapped_column(String, nullable=False)  # 'rss' | 'bluesky'
+    type: Mapped[str] = mapped_column(String, nullable=False)  # 'rss' | 'bluesky' | 'x'
     input_url: Mapped[str] = mapped_column(String, nullable=False)
     resolved_feed_url: Mapped[str | None] = mapped_column(String, nullable=True)
-    external_id: Mapped[str | None] = mapped_column(String, nullable=True)  # bluesky DID
+    # Stable upstream id, resolved once and cached: bluesky DID, X numeric user id.
+    external_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Incremental-fetch high-water mark (X since_id = newest tweet id seen). Lets the metered
+    # X adapter pull only genuinely-new tweets instead of re-reading a window every scrape.
+    cursor: Mapped[str | None] = mapped_column(String, nullable=True)
     title: Mapped[str | None] = mapped_column(String, nullable=True)
     last_checked_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

@@ -58,12 +58,12 @@ export function SourcesEditor() {
   return (
     <div className="stack">
       <p className="muted small">
-        Paste a blog/Substack RSS URL or a Bluesky handle. (X / Twitter coming soon.)
+        Paste a blog/Substack RSS URL, a Bluesky handle, or an X profile.
       </p>
 
       <form onSubmit={onPreview} className="settings-row">
         <input
-          placeholder="https://example.com or @handle.bsky.social"
+          placeholder="https://example.com, @handle.bsky.social, or x.com/username"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           disabled={state.step === "confirm" || state.step === "adding"}
@@ -143,11 +143,12 @@ export function SourcesEditor() {
 export function platformLabel(type: string): string {
   if (type === "rss") return "RSS";
   if (type === "bluesky") return "Bluesky";
+  if (type === "x") return "X";
   return type;
 }
 
-// Map API failures to inline copy: 400 = rejected platform (x.com "coming soon"),
-// 422 = dead/unreadable feed. Otherwise show the server message verbatim.
+// Map API failures to inline copy: 400 = unsupported platform, 422 = dead/unreadable
+// feed or upstream source error. Otherwise show the server message verbatim.
 function errorText(err: unknown): string {
   if (err instanceof ApiError) return err.message;
   return "Something went wrong. Try again.";

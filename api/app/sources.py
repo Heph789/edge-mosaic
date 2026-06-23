@@ -17,19 +17,20 @@ from sqlalchemy.orm import Session
 from .adapters import NormalizedItem
 from .adapters.bluesky import BlueskyAdapter
 from .adapters.rss import RSSAdapter
+from .adapters.x import XAdapter
 from .config import ADD_SOURCE_DEADLINE, ADD_SOURCE_TIMEOUT
 from .models import Source
 
-# Hosts we deliberately reject for now (X adapter is deferred — see mvp-plan Deferred).
-REJECTED_HOSTS = {"x.com", "twitter.com", "mobile.twitter.com"}
+# Hosts routed to the X adapter (the various Twitter/X domains all serve the same profiles).
+X_HOSTS = {"x.com", "twitter.com", "mobile.twitter.com"}
 
 
 class SourceRejected(Exception):
-    """The URL is a platform we don't support yet (e.g. X / Twitter)."""
+    """The URL is a platform we don't support yet."""
 
 
 def detect_type(url: str) -> str:
-    """'rss' | 'bluesky'. Raises SourceRejected for deferred platforms."""
+    """'rss' | 'bluesky' | 'x'. Raises SourceRejected for unsupported platforms."""
     raw = url.strip()
     if raw.startswith("@"):
         return "bluesky"  # a bare @handle is always Bluesky
@@ -37,8 +38,8 @@ def detect_type(url: str) -> str:
     host = (urlparse(raw if "://" in raw else f"https://{raw}").hostname or "").lower()
     host = host.removeprefix("www.")
 
-    if host in REJECTED_HOSTS:
-        raise SourceRejected("X / Twitter sources are coming soon.")
+    if host in X_HOSTS:
+        return "x"
     if host == "bsky.app":
         return "bluesky"
     return "rss"  # Substack (/feed) + general RSS autodiscovery handled by the resolver
@@ -60,6 +61,8 @@ def _adapter_for(source_type: str):
         return RSSAdapter(timeout=ADD_SOURCE_TIMEOUT, deadline_seconds=ADD_SOURCE_DEADLINE)
     if source_type == "bluesky":
         return BlueskyAdapter()
+    if source_type == "x":
+        return XAdapter()
     raise ValueError(f"Unknown source type: {source_type!r}")
 
 

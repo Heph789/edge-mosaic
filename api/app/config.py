@@ -50,6 +50,17 @@ YOUTUBE_CONSENT_COOKIES = {"SOCS": "CAI", "CONSENT": "YES+"}
 RSS_FETCH_TIMEOUT = 10.0
 BLUESKY_FEED_LIMIT = 30
 
+# --- X / Twitter (paid, metered) ------------------------------------------------------
+# As of 2026-02-06 X charges pay-per-use ($0.005 per post read), so the adapter is built
+# to read as little as possible: resolve the username→id ONCE (cached on source.external_id),
+# then pull only tweets newer than the last seen one (since_id, stored on source.cursor).
+# X_FEED_LIMIT caps the page size — the only knob that bounds the first pull for a new source
+# and any catch-up after a quiet stretch. X requires max_results in [5, 100].
+X_BEARER_TOKEN = os.environ.get("X_BEARER_TOKEN", "")
+X_API_BASE = os.environ.get("X_API_BASE", "https://api.twitter.com/2")
+X_FEED_LIMIT = int(os.environ.get("X_FEED_LIMIT", "10"))
+X_FETCH_TIMEOUT = 10.0
+
 # Polite retry on transient throttling (429/5xx, timeouts) during the background scrape.
 # Honors Retry-After; backs off exponentially with jitter rather than re-hammering. The
 # interactive add-time validator (which sets a deadline) opts out to stay snappy.

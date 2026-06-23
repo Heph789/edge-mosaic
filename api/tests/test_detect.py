@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.sources import SourceRejected, detect_type
+from app.sources import detect_type
 
 
 @pytest.mark.parametrize(
@@ -16,13 +16,11 @@ from app.sources import SourceRejected, detect_type
         ("https://www.astralcodexten.com", "rss"),
         ("foo.substack.com", "rss"),
         ("https://example.com/blog", "rss"),
+        ("https://x.com/jack", "x"),
+        ("twitter.com/x", "x"),
+        ("https://www.x.com/y", "x"),
+        ("https://mobile.twitter.com/z", "x"),
     ],
 )
 def test_detect_type(url, expected):
     assert detect_type(url) == expected
-
-
-@pytest.mark.parametrize("url", ["https://x.com/jack", "twitter.com/x", "https://www.x.com/y"])
-def test_x_is_rejected(url):
-    with pytest.raises(SourceRejected):
-        detect_type(url)
