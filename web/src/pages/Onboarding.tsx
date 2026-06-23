@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, ApiError, type Link, type MePatch, type Visibility } from "../api";
 import { useAuth } from "../auth";
@@ -7,16 +7,21 @@ import {
   BioField,
   CitiesEditor,
   ContactFields,
-  ImageUploader,
+  isValidEmail,
+  isValidPhone,
+  isValidTelegram,
   LinksEditor,
   VisibilityToggle,
 } from "../components/ProfileFields";
 import { SourcesEditor } from "../components/SourcesEditor";
+import { trackOnboardingStep } from "../sentry";
 
 // Multi-step onboarding wizard. Step 1 (display name) flips `onboarded` via PATCH /me;
 // /onboarding lives outside the RequireOnboarded guard, so later enrichment steps don't
 // bounce the user. Every step is skippable except the name. Finish → the app.
-const STEPS = ["Name", "About you", "Photos", "Links", "Sources", "Visibility"] as const;
+// Sources comes before Links (feeders first — they're the point); the Photos step was
+// removed (profile photos are on hold).
+const STEPS = ["Name", "About you", "Sources", "Links", "Visibility"] as const;
 
 export function Onboarding() {
   const { user, applyUser } = useAuth();
@@ -30,21 +35,36 @@ export function Onboarding() {
   const usernameStatus = useUsernameAvailability(username);
   const [bio, setBio] = useState(user?.bio ?? "");
   const [cities, setCities] = useState<string[]>(user?.cities ?? []);
-  const [contactEmail, setContactEmail] = useState(user?.contact_email ?? "");
+  // Pre-fill the public contact email with the sign-in email; the field has a clear button.
+  const [contactEmail, setContactEmail] = useState(
+    user?.contact_email ?? user?.email ?? ""
+  );
   const [contactPhone, setContactPhone] = useState(user?.contact_phone ?? "");
+  const [contactTelegram, setContactTelegram] = useState(user?.contact_telegram ?? "");
   const [links, setLinks] = useState<Link[]>(user?.links ?? []);
   const [visibility, setVisibility] = useState<Visibility>(user?.visibility ?? "community");
 
   const updateMe = useUpdateMe(applyUser);
   const last = step === STEPS.length - 1;
 
+  // A stable id for this onboarding run so Sentry can stitch the step events into a funnel.
+  const sessionId = useRef<string>(crypto.randomUUID()).current;
+  // Fire a "view" event whenever a step is shown — the last one a session emits marks where
+  // the user dropped off.
+  useEffect(() => {
+    trackOnboardingStep(STEPS[step], "view", sessionId);
+  }, [step, sessionId]);
+
   // Persist the fields owned by the current step, then advance (or finish).
   async function saveAndNext(patch: MePatch) {
     setError(null);
     try {
       if (Object.keys(patch).length > 0) await updateMe.mutateAsync(patch);
-      if (last) navigate("/directory", { replace: true });
-      else setStep((s) => s + 1);
+      trackOnboardingStep(STEPS[step], "complete", sessionId);
+      if (last) {
+        trackOnboardingStep("Finished", "complete", sessionId);
+        navigate("/directory", { replace: true });
+      } else setStep((s) => s + 1);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Couldn't save — try again.");
     }
@@ -74,20 +94,35 @@ export function Onboarding() {
         // A still-"checking" username is re-validated server-side (409/422 surfaces here).
         return saveAndNext({ display_name: trimmed, username: handle });
       }
-      case "About you":
+      case "About you": {
+        // Contact fields are optional, but a *filled* one must be structurally valid.
+        if (!isValidEmail(contactEmail)) {
+          setError("Enter a valid email address (or clear it).");
+          return;
+        }
+        if (!isValidPhone(contactPhone)) {
+          setError("Enter a valid phone number (or leave it blank).");
+          return;
+        }
+        if (!isValidTelegram(contactTelegram)) {
+          setError("Telegram handle is 5–32 characters: letters, numbers, or underscores.");
+          return;
+        }
         return saveAndNext({
           bio: bio.trim(),
           cities: cities.map((c) => c.trim()).filter(Boolean),
           contact_email: contactEmail.trim(),
           contact_phone: contactPhone.trim(),
+          contact_telegram: contactTelegram.trim(),
         });
+      }
       case "Links":
         return saveAndNext({
           links: links.filter((l) => l.label.trim() && l.url.trim()),
         });
       case "Visibility":
         return saveAndNext({ visibility });
-      // Photos + Sources persist immediately inside their own components.
+      // Sources persist immediately inside their own component.
       default:
         return saveAndNext({});
     }
@@ -151,33 +186,13 @@ export function Onboarding() {
               <ContactFields
                 email={contactEmail}
                 phone={contactPhone}
+                telegram={contactTelegram}
                 onEmail={setContactEmail}
                 onPhone={setContactPhone}
+                onTelegram={setContactTelegram}
               />
             </>
           )}
-
-          {STEPS[step] === "Photos" && (
-            <>
-              <p className="muted small">
-                Your profile photo and a tile image for the community mosaic.
-              </p>
-              <ImageUploader
-                kind="profile"
-                label="Profile photo"
-                url={user?.profile_image_url ?? null}
-                onUser={applyUser}
-              />
-              <ImageUploader
-                kind="tile"
-                label="Tile image"
-                url={user?.tile_image_url ?? null}
-                onUser={applyUser}
-              />
-            </>
-          )}
-
-          {STEPS[step] === "Links" && <LinksEditor links={links} onChange={setLinks} />}
 
           {STEPS[step] === "Sources" && (
             <>
@@ -187,6 +202,8 @@ export function Onboarding() {
               <SourcesEditor />
             </>
           )}
+
+          {STEPS[step] === "Links" && <LinksEditor links={links} onChange={setLinks} />}
 
           {STEPS[step] === "Visibility" && (
             <VisibilityToggle value={visibility} onChange={setVisibility} />

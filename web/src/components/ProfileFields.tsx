@@ -20,6 +20,20 @@ export function normalizeLinkUrl(url: string): string {
   return trimmed;
 }
 
+// --- contact-field validation (all optional → empty is always valid; we only check the
+// structure of a *filled* value). The backend stores these as free text, so this is a UX
+// guard, not a security boundary. ---------------------------------------------------------
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Lenient phone check: at least 7 digits, allowing +, spaces, -, (), . separators.
+const PHONE_RE = /^\+?[\d\s().-]{7,}$/;
+// Telegram handle: optional leading '@', then 5–32 of [A-Za-z0-9_].
+const TELEGRAM_RE = /^@?[A-Za-z0-9_]{5,32}$/;
+
+export const isValidEmail = (v: string) => v.trim() === "" || EMAIL_RE.test(v.trim());
+export const isValidPhone = (v: string) =>
+  v.trim() === "" || (PHONE_RE.test(v.trim()) && (v.match(/\d/g)?.length ?? 0) >= 7);
+export const isValidTelegram = (v: string) => v.trim() === "" || TELEGRAM_RE.test(v.trim());
+
 export function BioField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <label className="field">
@@ -41,24 +55,47 @@ export function BioField({ value, onChange }: { value: string; onChange: (v: str
 export function ContactFields({
   email,
   phone,
+  telegram,
   onEmail,
   onPhone,
+  onTelegram,
 }: {
   email: string;
   phone: string;
+  telegram: string;
   onEmail: (v: string) => void;
   onPhone: (v: string) => void;
+  onTelegram: (v: string) => void;
 }) {
+  // Inline structure check, shown only once a field has a (non-empty) value to validate.
+  const emailBad = email.trim() !== "" && !isValidEmail(email);
+  const phoneBad = phone.trim() !== "" && !isValidPhone(phone);
+  const telegramBad = telegram.trim() !== "" && !isValidTelegram(telegram);
   return (
     <div className="stack">
       <label className="field">
         <span>Public contact email</span>
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => onEmail(e.target.value)}
-          placeholder="you@example.com"
-        />
+        {/* Pre-filled with your sign-in email; clear it with the ✕ if you'd rather not show it. */}
+        <span className="input-clearable">
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => onEmail(e.target.value)}
+            placeholder="you@example.com"
+            aria-invalid={emailBad}
+          />
+          {email !== "" && (
+            <button
+              type="button"
+              className="input-clear"
+              aria-label="Clear email"
+              onClick={() => onEmail("")}
+            >
+              ✕
+            </button>
+          )}
+        </span>
+        {emailBad && <span className="error small">Enter a valid email address.</span>}
       </label>
       <label className="field">
         <span>Phone</span>
@@ -67,7 +104,28 @@ export function ContactFields({
           value={phone}
           onChange={(e) => onPhone(e.target.value)}
           placeholder="optional"
+          aria-invalid={phoneBad}
         />
+        {phoneBad && <span className="error small">Enter a valid phone number.</span>}
+      </label>
+      <label className="field">
+        <span>Telegram</span>
+        <input
+          value={telegram}
+          onChange={(e) => onTelegram(e.target.value)}
+          placeholder="@handle (optional)"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          aria-invalid={telegramBad}
+        />
+        {telegramBad ? (
+          <span className="error small">
+            Handle is 5–32 characters: letters, numbers, or underscores.
+          </span>
+        ) : (
+          <span className="muted small">Your @username on Telegram.</span>
+        )}
       </label>
     </div>
   );

@@ -84,6 +84,30 @@ def test_create_runs_inline_first_scrape(client, db, make_user, auth, fake_feed)
     items = list(db.scalars(select(Item)))
     assert {i.external_id for i in items} == {"post-1", "note-1"}
     assert all(i.source_id == src["id"] for i in items)
+    assert src["status"] == "active"  # a successful scrape lands as active
+
+
+def test_create_unscrapeable_saves_as_unverified(client, db, make_user, auth, monkeypatch):
+    """A feed we can't read no longer 422s — it's saved as 'unverified' (shows on the profile
+    with a warning, excluded from digests) so the add flow never blocks the user."""
+
+    class DeadAdapter:
+        type = "rss"
+
+        def fetch(self, source):
+            raise RuntimeError("dead feed")
+
+    monkeypatch.setattr("app.ingest.get_adapter", lambda _t: DeadAdapter())
+
+    h = auth(make_user("a@example.com", "Ann A."))
+    r = client.post("/sources", json={"url": "https://dead.example"}, headers=h)
+    assert r.status_code == 201
+    assert r.json()["status"] == "unverified"
+
+    # The source row persists; no items were ingested.
+    src = db.scalar(select(Source))
+    assert src is not None and src.status == "unverified"
+    assert db.scalar(select(Item)) is None
 
 
 def test_create_is_idempotent(client, db, make_user, auth, fake_feed):

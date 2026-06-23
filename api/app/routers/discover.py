@@ -7,8 +7,8 @@ from sqlalchemy import case, or_, select
 
 from ..deps import CurrentUser, DbDep
 from ..models import ProfileLink, Source, Subscription, User, UserVillage
-from ..schemas import DiscoverOut
-from ..sources import platforms_for
+from ..schemas import DiscoverOut, LinkOut, PlatformPillOut
+from ..sources import platform_pills_for
 from ..storage import public_url
 from ..villages import village_ids_for
 
@@ -85,7 +85,17 @@ def discover(
     )
 
     feeder_ids = [r[0] for r in rows]
-    platforms = platforms_for(db, feeder_ids)
+    pills = platform_pills_for(db, feeder_ids)
+    # Non-feeder profile links, grouped per user in display order, shown as pressable pills.
+    links: dict[int, list[LinkOut]] = {}
+    for link in db.scalars(
+        select(ProfileLink)
+        .where(ProfileLink.user_id.in_(feeder_ids or [-1]))
+        .order_by(ProfileLink.position)
+    ):
+        links.setdefault(link.user_id, []).append(
+            LinkOut(label=link.label, url=link.url)
+        )
     subscribed = set(
         db.scalars(
             select(Subscription.feeder_id).where(
@@ -100,7 +110,11 @@ def discover(
             username=username,
             display_name=name,
             bio=bio,
-            platforms=platforms.get(fid, []),
+            platforms=[
+                PlatformPillOut(label=label, url=url)
+                for label, url in pills.get(fid, [])
+            ],
+            links=links.get(fid, []),
             is_subscribed=fid in subscribed,
             profile_image_url=public_url(profile_path),
             tile_image_url=public_url(tile_path),

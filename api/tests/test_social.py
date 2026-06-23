@@ -88,7 +88,8 @@ def test_discover_is_subscribed_flag_and_platforms(client, db, make_user, auth):
 
     hit = client.get("/discover?q=Builder", headers=h).json()[0]
     assert hit["is_subscribed"] is True
-    assert hit["platforms"] == ["Blog"]  # rss(https://rss.ex) → "Blog" display label
+    # Discover pills now link out: each platform label carries the first source's URL.
+    assert hit["platforms"] == [{"label": "Blog", "url": "https://rss.ex"}]
 
 
 def test_discover_escapes_like_wildcards(client, db, make_user, auth):

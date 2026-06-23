@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { Discover } from "../api";
+import type { Discover, Link, PlatformPill } from "../api";
 import { Avatar } from "../components/ProfileView";
 import { useDiscover, useToggleSubscribe } from "../hooks/queries";
 
@@ -95,16 +95,20 @@ function DiscoverRow({
   onOpen: () => void;
   onToggle: () => void;
 }) {
+  // Pills are anchors that open external sites, so they can't live inside the row-open
+  // <button> (nested interactive elements are invalid). They sit as a sibling below it.
   return (
     <li className="row">
-      <button className="row-main row-open" onClick={onOpen} type="button">
-        <Avatar url={row.profile_image_url} name={row.display_name} />
-        <span className="row-text">
-          <span className="row-name">{row.display_name ?? "Unnamed"}</span>
-          {row.bio && <span className="row-bio muted small">{row.bio}</span>}
-          <Platforms platforms={row.platforms} />
-        </span>
-      </button>
+      <div className="row-main">
+        <button className="row-open" onClick={onOpen} type="button">
+          <Avatar url={row.profile_image_url} name={row.display_name} />
+          <span className="row-text">
+            <span className="row-name">{row.display_name ?? "Unnamed"}</span>
+            {row.bio && <span className="row-bio muted small">{row.bio}</span>}
+          </span>
+        </button>
+        <Pills platforms={row.platforms} links={row.links} />
+      </div>
       <button
         className={row.is_subscribed ? "btn btn-subscribed" : "btn btn-primary"}
         onClick={onToggle}
@@ -116,6 +120,8 @@ function DiscoverRow({
   );
 }
 
+// Static platform pills (no links) — used by the "Following" list, where the labels are
+// plain strings and there's nothing to link out to.
 export function Platforms({ platforms }: { platforms: string[] }) {
   if (platforms.length === 0) return <span className="muted small">no sources yet</span>;
   return (
@@ -124,6 +130,42 @@ export function Platforms({ platforms }: { platforms: string[] }) {
         <span key={p} className="pill">
           {p}
         </span>
+      ))}
+    </span>
+  );
+}
+
+// Directory-card pills: one per platform (links to that platform's first source) plus the
+// feeder's non-feeder profile links. Each opens externally in a new tab; stopPropagation
+// keeps a pill click from also triggering the surrounding row.
+export function Pills({ platforms, links }: { platforms: PlatformPill[]; links: Link[] }) {
+  if (platforms.length === 0 && links.length === 0)
+    return <span className="muted small">no sources yet</span>;
+  return (
+    <span className="platforms">
+      {platforms.map((p) => (
+        <a
+          key={`p:${p.label}`}
+          className="pill pill-link"
+          href={p.url}
+          target="_blank"
+          rel="noreferrer noopener"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {p.label}
+        </a>
+      ))}
+      {links.map((l, i) => (
+        <a
+          key={`l:${i}`}
+          className="pill pill-link pill-other"
+          href={l.url}
+          target="_blank"
+          rel="noreferrer noopener"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {l.label}
+        </a>
       ))}
     </span>
   );

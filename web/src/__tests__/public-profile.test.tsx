@@ -13,6 +13,7 @@ const profile: PublicProfile = {
   display_name: "Chase B.",
   bio: "Builder.",
   contact_email: null,
+  contact_telegram: null,
   profile_image_url: null,
   tile_image_url: null,
   cities: ["Austin"],

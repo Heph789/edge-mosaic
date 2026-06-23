@@ -49,6 +49,7 @@ class UserOut(BaseModel):
     bio: str | None
     contact_email: str | None
     contact_phone: str | None
+    contact_telegram: str | None
     profile_image_url: str | None
     tile_image_url: str | None
     visibility: str
@@ -69,6 +70,7 @@ class UserOut(BaseModel):
             bio=user.bio,
             contact_email=user.contact_email,
             contact_phone=user.contact_phone,
+            contact_telegram=user.contact_telegram,
             profile_image_url=storage.public_url(user.profile_image_path),
             tile_image_url=storage.public_url(user.tile_image_path),
             visibility=user.visibility,
@@ -95,6 +97,7 @@ class ProfileSourceOut(BaseModel):
     label: str  # granular display label (Substack/YouTube/Podcast/…)
     url: str
     title: str | None
+    status: str  # 'active' | 'unverified' (unverified = couldn't be scraped yet)
 
 
 class PublicProfileOut(BaseModel):
@@ -105,6 +108,7 @@ class PublicProfileOut(BaseModel):
     display_name: str | None
     bio: str | None
     contact_email: str | None  # public contact only; phone stays private
+    contact_telegram: str | None  # public contact handle
     profile_image_url: str | None
     tile_image_url: str | None
     cities: list[str]
@@ -128,6 +132,7 @@ class PublicProfileOut(BaseModel):
             display_name=user.display_name,
             bio=user.bio,
             contact_email=user.contact_email,
+            contact_telegram=user.contact_telegram,
             profile_image_url=storage.public_url(user.profile_image_path),
             tile_image_url=storage.public_url(user.tile_image_path),
             cities=[c.name for c in user.cities],
@@ -158,6 +163,9 @@ class UpdateMeIn(BaseModel):
     contact_phone: str | None = Field(
         default=None, max_length=config.CONTACT_PHONE_MAX_CHARS
     )
+    contact_telegram: str | None = Field(
+        default=None, max_length=config.CONTACT_TELEGRAM_MAX_CHARS
+    )
     visibility: str | None = None
     cities: list[str] | None = Field(default=None, max_length=config.MAX_CITIES)
     links: list[LinkIn] | None = Field(default=None, max_length=config.MAX_LINKS)
@@ -185,6 +193,7 @@ class SourceOut(BaseModel):
     input_url: str
     resolved_feed_url: str | None
     title: str | None
+    status: str  # 'active' | 'unverified' (unverified = couldn't be scraped yet)
     last_checked_at: datetime | None
     last_success_at: datetime | None
     created_at: datetime
@@ -200,6 +209,7 @@ class SourceOut(BaseModel):
             input_url=source.input_url,
             resolved_feed_url=source.resolved_feed_url,
             title=source.title,
+            status=source.status,
             last_checked_at=source.last_checked_at,
             last_success_at=source.last_success_at,
             created_at=source.created_at,
@@ -217,12 +227,21 @@ class SubscriptionOut(BaseModel):
     platforms: list[str]
 
 
+class PlatformPillOut(BaseModel):
+    """A directory card pill: a platform label that links out to the feeder's first source
+    of that platform."""
+
+    label: str  # Substack/YouTube/Podcast/…
+    url: str  # the first source of that platform (the pill's link target)
+
+
 class DiscoverOut(BaseModel):
     user_id: int
     username: str
     display_name: str | None
     bio: str | None  # short context shown under the name in the directory
-    platforms: list[str]
+    platforms: list[PlatformPillOut]  # feeder-source pills, each links out
+    links: list[LinkOut]  # non-feeder profile links, shown as pressable pills too
     is_subscribed: bool
     profile_image_url: str | None
     tile_image_url: str | None  # the mosaic cell image (future mosaic UI)

@@ -7,7 +7,9 @@ import {
   BioField,
   CitiesEditor,
   ContactFields,
-  ImageUploader,
+  isValidEmail,
+  isValidPhone,
+  isValidTelegram,
   LinksEditor,
   VisibilityToggle,
 } from "../components/ProfileFields";
@@ -44,7 +46,6 @@ export function Profile() {
       )}
 
       <DisplayNameSection />
-      <PhotosSection />
       <AboutSection />
       <SourcesSection />
     </div>
@@ -98,34 +99,15 @@ function DisplayNameSection() {
   );
 }
 
-function PhotosSection() {
-  const { user, applyUser } = useAuth();
-  return (
-    <section className="card stack">
-      <h2>Photos</h2>
-      <ImageUploader
-        kind="profile"
-        label="Profile photo"
-        url={user?.profile_image_url ?? null}
-        onUser={applyUser}
-      />
-      <ImageUploader
-        kind="tile"
-        label="Tile image"
-        url={user?.tile_image_url ?? null}
-        onUser={applyUser}
-      />
-    </section>
-  );
-}
-
 // Bio, cities, contact, links, and visibility — one form, one Save (a single PATCH /me).
 function AboutSection() {
   const { user, applyUser } = useAuth();
   const [bio, setBio] = useState(user?.bio ?? "");
   const [cities, setCities] = useState<string[]>(user?.cities ?? []);
-  const [contactEmail, setContactEmail] = useState(user?.contact_email ?? "");
+  // Pre-fill the public contact email with the sign-in email; the field has a clear button.
+  const [contactEmail, setContactEmail] = useState(user?.contact_email ?? user?.email ?? "");
   const [contactPhone, setContactPhone] = useState(user?.contact_phone ?? "");
+  const [contactTelegram, setContactTelegram] = useState(user?.contact_telegram ?? "");
   const [links, setLinks] = useState<Link[]>(user?.links ?? []);
   const [visibility, setVisibility] = useState<Visibility>(user?.visibility ?? "community");
   const [status, setStatus] = useState<string | null>(null);
@@ -140,12 +122,26 @@ function AboutSection() {
     e.preventDefault();
     setStatus(null);
     setError(null);
+    // Contact fields are optional, but a filled one must be structurally valid.
+    if (!isValidEmail(contactEmail)) {
+      setError("Enter a valid email address (or clear it).");
+      return;
+    }
+    if (!isValidPhone(contactPhone)) {
+      setError("Enter a valid phone number (or leave it blank).");
+      return;
+    }
+    if (!isValidTelegram(contactTelegram)) {
+      setError("Telegram handle is 5–32 characters: letters, numbers, or underscores.");
+      return;
+    }
     try {
       await updateMe.mutateAsync({
         bio: bio.trim(),
         cities: cities.map((c) => c.trim()).filter(Boolean),
         contact_email: contactEmail.trim(),
         contact_phone: contactPhone.trim(),
+        contact_telegram: contactTelegram.trim(),
         links: links.filter((l) => l.label.trim() && l.url.trim()),
         visibility,
       });
@@ -163,8 +159,10 @@ function AboutSection() {
         <ContactFields
           email={contactEmail}
           phone={contactPhone}
+          telegram={contactTelegram}
           onEmail={setContactEmail}
           onPhone={setContactPhone}
+          onTelegram={setContactTelegram}
         />
         <LinksEditor links={links} onChange={setLinks} />
         <VisibilityToggle value={visibility} onChange={setVisibility} />

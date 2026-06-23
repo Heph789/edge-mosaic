@@ -280,6 +280,71 @@ select {
   background: #ececf0;
   color: var(--muted);
 }
+/* Pressable pills (directory cards) link out to a source / profile link. */
+a.pill-link {
+  cursor: pointer;
+  text-decoration: none;
+  border: 1px solid transparent;
+}
+a.pill-link:hover {
+  background: #e0e3ea;
+  color: var(--text);
+}
+/* Non-feeder profile-link pills, distinguished from feeder-source pills. */
+.pill-other {
+  background: transparent;
+  border: 1px solid var(--border);
+}
+/* "Can't scrape yet" warning on an unverified source. */
+button.pill-warning {
+  cursor: pointer;
+  font-size: 0.75rem;
+  background: #fdf0d5;
+  color: #8a6d1c;
+  border: 1px solid #e8d18a;
+}
+.unverified-badge {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.unverified-note {
+  flex-basis: 100%;
+  max-width: 420px;
+}
+
+/* Clearable text input (the contact email's ✕). */
+.input-clearable {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.input-clearable input {
+  flex: 1;
+  padding-right: 30px;
+}
+.input-clear {
+  position: absolute;
+  right: 6px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1;
+  padding: 4px;
+}
+.input-clear:hover {
+  color: var(--text);
+}
+/* Source list meta row: label pill, optional warning, then the URL. */
+.source-meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
 
 /* --- add-source confirm --- */
 .confirm-card {
@@ -287,6 +352,11 @@ select {
   background: #f5f8ff;
   border-radius: var(--radius);
   padding: 14px;
+}
+/* Couldn't-read-a-feed variant: same card, warning palette. */
+.confirm-card--warn {
+  border-color: #e8d18a;
+  background: #fdf8ec;
 }
 
 /* --- digest preview --- */
@@ -505,6 +575,7 @@ textarea {
   border: none;
   padding: 0;
   margin: 0;
+  margin-bottom: 5px;
   font: inherit;
   color: inherit;
   text-align: left;
@@ -512,6 +583,13 @@ textarea {
 }
 .row-open:hover .row-name {
   color: var(--primary);
+}
+/* row-open now nests inside row-main; cancel the `.row button { margin-left:auto }` rule
+   (meant for the trailing Follow button) so the avatar/name stays left-aligned. */
+.row-main .row-open {
+  margin-left: 0;
+  align-self: flex-start;
+  width: 100%;
 }
 .row-text {
   display: flex;
