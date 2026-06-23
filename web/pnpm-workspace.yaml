@@ -1,0 +1,26 @@
+# pnpm config for the web app (pnpm reads this even for a single, non-workspace project).
+# Supply-chain hardening — see deploy-instructions.md for rationale.
+
+# --- Cooldown ----------------------------------------------------------------------------
+# Refuse to install any package version published less than 7 days ago (transitive deps
+# included). Most malicious releases are pulled from the registry within hours, so a 7-day
+# delay sidesteps the typical attack window. Unit is MINUTES (7 × 24 × 60 = 10080).
+minimumReleaseAge: 10080
+# To install a genuinely-urgent fix that is still inside the cooldown, temporarily add the
+# package here (by name, or name@version) instead of lowering the global value:
+# minimumReleaseAgeExclude:
+#   - some-package
+#   - some-package@1.2.3
+
+# --- Install-script allowlist ------------------------------------------------------------
+# pnpm blocks ALL dependency lifecycle scripts (postinstall, etc.) by default — the main
+# supply-chain RCE vector. Only the packages listed here may run their build scripts.
+# esbuild needs its script to fetch its native binary (Vite depends on it). After `pnpm
+# install`, pnpm prints any build scripts it ignored; add a package here only if something
+# you trust genuinely needs to build.
+onlyBuiltDependencies:
+  - esbuild
+
+# --- Version hygiene ---------------------------------------------------------------------
+savePrefix: ''        # `pnpm add <pkg>` pins exact (1.2.3), not ^1.2.3 — nothing floats.
+engineStrict: true    # enforce package.json "engines.node".

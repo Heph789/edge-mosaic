@@ -1,7 +1,10 @@
 # Edge Mosaic API — production image for Railway.
 # Base image ships Python 3.11 + uv (https://github.com/astral-sh/uv), matching
 # requires-python = ">=3.11" in pyproject.toml.
-FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim
+# Pinned by digest so a repointed/poisoned tag can't silently change the base. To
+# intentionally update: `docker manifest inspect ghcr.io/astral-sh/uv:python3.11-bookworm-slim`
+# and replace the @sha256 below (the tag is kept for readability).
+FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim@sha256:f6bb96a2e3c5abe90eb9835a7f543067434d1d2d99d670315a9e826ba5f6fed9
 
 # Unbuffered logs (so Railway captures them live), no .pyc clutter, copy into the venv
 # (hardlinks don't survive the cache-mount boundary), and precompile bytecode for faster

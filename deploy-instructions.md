@@ -221,12 +221,19 @@ prunes ghosts dropped from it. Feed-bearing links (Substack, Bluesky, **X**, …
 The SPA is a static Vite build that just needs `VITE_API_URL` pointed at the Railway API.
 It's a **build-time** variable, so changing it requires a rebuild.
 
+The web app uses **pnpm** (pinned via `"packageManager": "pnpm@10.20.0"` in `web/package.json`).
+Vercel auto-detects pnpm from `web/pnpm-lock.yaml` and runs the pinned version through Corepack,
+so no install/build command override is needed. The build host must run pnpm ≥ 10.16 for the
+`minimumReleaseAge` cooldown in `web/pnpm-workspace.yaml` to take effect — the pinned 10.20.0
+satisfies this. A frozen install (`pnpm install --frozen-lockfile`) is unaffected by the cooldown
+because it installs the already-locked versions without re-resolving.
+
 **Option A — Vercel (already configured).** `web/vercel.json` has the SPA rewrite. Import the
 repo into Vercel with **Root Directory = `web`**, set `VITE_API_URL=https://<your-api-domain>`,
 and deploy. Then set the API's `APP_BASE_URL` / `CORS_ORIGINS` to the Vercel domain.
 
 **Option B — Railway static site.** Add another service (Root Directory `web`), build with
-`npm install && npm run build`, and serve the `dist/` folder with a static server (e.g.
+`corepack pnpm install --frozen-lockfile && corepack pnpm build`, and serve the `dist/` folder with a static server (e.g.
 `npx serve -s dist -l $PORT`). Set `VITE_API_URL` in its build environment. If you go this
 route, ask and I'll add a `web/Dockerfile` (nginx or `serve`) to match.
 
