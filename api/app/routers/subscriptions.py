@@ -2,19 +2,14 @@
 
 from __future__ import annotations
 
-import logging
-
-import sentry_sdk
 from fastapi import APIRouter, HTTPException, Response, status
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from ..deps import CurrentUser, DbDep
-from ..jobs.digest import send_welcome_sample
 from ..models import Subscription, User
 from ..schemas import SubscribeIn, SubscriptionOut
 from ..sources import platforms_for
 
-log = logging.getLogger("edge_mosaic.subscriptions")
 router = APIRouter(tags=["subscriptions"])
 
 
@@ -31,23 +26,8 @@ def subscribe(body: SubscribeIn, user: CurrentUser, db: DbDep) -> SubscriptionOu
         )
     )
     if existing is None:
-        is_first = (
-            db.scalar(
-                select(func.count())
-                .select_from(Subscription)
-                .where(Subscription.subscriber_id == user.id)
-            )
-            == 0
-        )
         db.add(Subscription(subscriber_id=user.id, feeder_id=feeder.id))
         db.commit()
-        if is_first:
-            # First-subscribe welcome sample (§5) — best-effort, never fails the request.
-            try:
-                send_welcome_sample(db, user)
-            except Exception:
-                log.exception("welcome sample failed for user %s", user.id)
-                sentry_sdk.capture_exception()
 
     platforms = platforms_for(db, [feeder.id]).get(feeder.id, [])
     return SubscriptionOut(

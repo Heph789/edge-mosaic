@@ -10,6 +10,16 @@ export const BIO_MAX_CHARS = 280;
 export const MAX_CITIES = 5;
 export const MAX_LINKS = 10;
 
+// Mirrors api/app/main.py `_normalize_url`: default a scheme-less link to https:// so
+// "chasejeter.com" opens as a real URL instead of a relative path. Leaves
+// mailto:/tel:/http(s):// untouched. Applied on blur so the user sees it auto-populate.
+const URL_SCHEME_RE = /^[a-z][a-z0-9+.-]*:/i;
+export function normalizeLinkUrl(url: string): string {
+  const trimmed = url.trim();
+  if (trimmed && !URL_SCHEME_RE.test(trimmed)) return `https://${trimmed}`;
+  return trimmed;
+}
+
 export function BioField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <label className="field">
@@ -130,6 +140,7 @@ export function LinksEditor({
               className="link-url"
               value={link.url}
               onChange={(e) => set(i, { url: e.target.value })}
+              onBlur={(e) => set(i, { url: normalizeLinkUrl(e.target.value) })}
               placeholder="https://…"
             />
             <button

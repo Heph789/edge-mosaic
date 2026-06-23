@@ -29,15 +29,34 @@ class SourceRejected(Exception):
     """The URL is a platform we don't support yet."""
 
 
+def _host(url: str | None) -> str:
+    """Lower-cased, www-stripped hostname for a (possibly scheme-less) URL."""
+    if not url:
+        return ""
+    raw = url.strip()
+    host = (urlparse(raw if "://" in raw else f"https://{raw}").hostname or "").lower()
+    return host.removeprefix("www.")
+
+
+def normalize_source_url(url: str) -> str:
+    """Default a scheme-less feed URL to https:// so 'chaselb.substack.com' is fetched as a
+    URL rather than treated as a path (which fails with 'unknown url type'). Bluesky
+    @handles and already-schemed URLs pass through untouched."""
+    raw = url.strip()
+    if not raw or raw.startswith("@") or "://" in raw:
+        return raw
+    return f"https://{raw}"
+
+
 def detect_type(url: str) -> str:
-    """'rss' | 'bluesky' | 'x'. Raises SourceRejected for unsupported platforms."""
+    """'rss' | 'bluesky' | 'x' — the scraping category. Raises SourceRejected for
+    unsupported platforms. This is intentionally coarse; see `detect_label` for the
+    display name."""
     raw = url.strip()
     if raw.startswith("@"):
         return "bluesky"  # a bare @handle is always Bluesky
 
-    host = (urlparse(raw if "://" in raw else f"https://{raw}").hostname or "").lower()
-    host = host.removeprefix("www.")
-
+    host = _host(raw)
     if host in X_HOSTS:
         return "x"
     if host == "bsky.app":
@@ -45,9 +64,53 @@ def detect_type(url: str) -> str:
     return "rss"  # Substack (/feed) + general RSS autodiscovery handled by the resolver
 
 
+# Podcast-hosting domains whose feeds we want to surface as "Podcast" rather than "Blog".
+_PODCAST_HOSTS = frozenset(
+    {
+        "anchor.fm", "podbean.com", "libsyn.com", "redcircle.com", "acast.com",
+        "captivate.fm", "fireside.fm", "pinecast.com", "buzzsprout.com",
+        "transistor.fm", "simplecast.com", "megaphone.fm", "omny.fm", "rss.com",
+    }
+)
+
+
+def detect_label(
+    source_type: str,
+    input_url: str,
+    resolved_feed_url: str | None = None,
+) -> str:
+    """Granular, human-facing label for a source — finer than `type` (the scraping
+    category). One of: 'Bluesky' | 'X' | 'YouTube' | 'Substack' | 'Medium' | 'Podcast' | 'Blog'.
+    Derived from the URL host(s), so it needs no extra storage."""
+    if source_type == "bluesky":
+        return "Bluesky"
+    if source_type == "x":
+        return "X"
+
+    hosts = [h for h in (_host(resolved_feed_url), _host(input_url)) if h]
+
+    def host_matches(suffixes: frozenset[str] | set[str]) -> bool:
+        return any(
+            h == s or h.endswith(f".{s}") for h in hosts for s in suffixes
+        )
+
+    if host_matches({"youtube.com", "youtu.be"}):
+        return "YouTube"
+    if host_matches({"substack.com"}):
+        return "Substack"
+    if host_matches({"medium.com"}):
+        return "Medium"
+    if host_matches(_PODCAST_HOSTS) or any(
+        "podcast" in (u or "").lower() for u in (input_url, resolved_feed_url)
+    ):
+        return "Podcast"
+    return "Blog"
+
+
 @dataclass
 class SourcePreview:
     type: str
+    label: str
     resolved_url: str | None
     title: str | None
     found_count: int
@@ -80,6 +143,7 @@ def preview_source(url: str) -> SourcePreview:
     latest = max(items, key=lambda i: i.published_at) if items else None
     return SourcePreview(
         type=source_type,
+        label=detect_label(source_type, url, transient.resolved_feed_url),
         resolved_url=transient.resolved_feed_url or transient.input_url,
         title=transient.title,
         found_count=len(items),
@@ -89,14 +153,18 @@ def preview_source(url: str) -> SourcePreview:
 
 
 def platforms_for(session: Session, user_ids: Iterable[int]) -> dict[int, list[str]]:
-    """{user_id: sorted distinct source types}. Feeders with no sources are absent."""
+    """{user_id: sorted distinct display labels}. Labels are the granular, human-facing
+    names (Substack/YouTube/Podcast/…) — see `detect_label`. Feeders with no sources are
+    absent."""
     ids = list(user_ids)
     out: dict[int, set[str]] = {}
     if not ids:
         return {}
     rows = session.execute(
-        select(Source.user_id, Source.type).where(Source.user_id.in_(ids)).distinct()
+        select(
+            Source.user_id, Source.type, Source.input_url, Source.resolved_feed_url
+        ).where(Source.user_id.in_(ids))
     ).all()
-    for uid, stype in rows:
-        out.setdefault(uid, set()).add(stype)
-    return {uid: sorted(types) for uid, types in out.items()}
+    for uid, stype, input_url, resolved in rows:
+        out.setdefault(uid, set()).add(detect_label(stype, input_url, resolved))
+    return {uid: sorted(labels) for uid, labels in out.items()}

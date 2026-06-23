@@ -102,25 +102,6 @@ def send_one(db: Session, user: User, anchor: date) -> bool | None:
     return has_content
 
 
-def send_welcome_sample(db: Session, user: User) -> None:
-    """One-off sample on first subscribe (§5) — also a deliverability canary. Best-effort;
-    sends even when empty (the canary still validates delivery). Does NOT touch cadence."""
-    data = assemble_digest(db, user)  # trailing preview window
-    html = render_digest_html(
-        data, _unsub_url(user.unsubscribe_token, config.APP_BASE_URL)
-    )
-    sample_note = (
-        "<p><em>This is a one-off sample so you can see what your digests will look "
-        "like. It doesn't change your weekly/monthly schedule.</em></p>"
-    )
-    send_email(
-        to=user.email,
-        subject="Welcome to Edge Mosaic — a sample digest",
-        html=sample_note + html,
-        headers=_list_unsubscribe_headers(user),
-    )
-
-
 def run_digest_job(db: Session, today: date | None = None) -> dict[str, int]:
     today = today or utcnow().date()
     stats = {"sent": 0, "skipped_empty": 0, "already": 0, "errors": 0}

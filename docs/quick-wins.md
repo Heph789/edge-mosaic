@@ -1,0 +1,5 @@
+- Need to delete sample digest feature. it's mostly useless. delete all associated tests and fixtures as wel
+- Users should be able to search their own profile
+- Links should auto-populate the https:// if it’s not pasted that way exactly
+- Infinite scroll on participants
+- right now 'type' is just rss or bluesky. These are the categories that matter for scraping, but for the display, we should have a 'label' that is more granular (substack, blog, youtube, podcast, etc). Also add more context from the bio

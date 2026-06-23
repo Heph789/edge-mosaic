@@ -13,7 +13,12 @@ export type Visibility = "community" | "village";
 export type ImageKind = "profile" | "tile";
 
 export type Link = { label: string; url: string };
-export type ProfileSource = { type: string; url: string; title: string | null };
+export type ProfileSource = {
+  type: string;
+  label: string; // granular display label (Substack/YouTube/Podcast/…)
+  url: string;
+  title: string | null;
+};
 
 export type User = {
   id: number;
@@ -56,6 +61,7 @@ export type UsernameAvailability = { valid: boolean; available: boolean };
 
 export type SourcePreview = {
   type: string;
+  label: string;
   resolved_url: string | null;
   title: string | null;
   found_count: number;
@@ -66,6 +72,7 @@ export type SourcePreview = {
 export type Source = {
   id: number;
   type: string;
+  label: string; // granular display label (Substack/YouTube/Podcast/…)
   input_url: string;
   resolved_feed_url: string | null;
   title: string | null;
@@ -84,6 +91,7 @@ export type Discover = {
   user_id: number;
   username: string;
   display_name: string | null;
+  bio: string | null;
   platforms: string[];
   is_subscribed: boolean;
   profile_image_url: string | null;
@@ -241,8 +249,10 @@ export const api = {
   listSubscriptions: () => request<Subscription[]>("/subscriptions"),
 
   // --- discover ---
-  discover: (q: string) =>
-    request<Discover[]>(`/discover?q=${encodeURIComponent(q)}`),
+  discover: (q: string, offset = 0) =>
+    request<Discover[]>(
+      `/discover?q=${encodeURIComponent(q)}&offset=${offset}`
+    ),
 
   // --- digest preview ---
   digestPreview: () => request<DigestPreview>("/me/digest/preview"),

@@ -66,6 +66,7 @@ export function SourcesEditor() {
           placeholder="https://example.com, @handle.bsky.social, or x.com/username"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
+          onBlur={(e) => setUrl(normalizeSourceUrl(e.target.value))}
           disabled={state.step === "confirm" || state.step === "adding"}
         />
         <button
@@ -82,7 +83,7 @@ export function SourcesEditor() {
       {(state.step === "confirm" || state.step === "adding") && (
         <div className="confirm-card stack">
           <div>
-            <strong>{platformLabel(state.preview.type)}</strong> — found{" "}
+            <strong>{state.preview.label}</strong> — found{" "}
             {state.preview.found_count} recent{" "}
             {state.preview.found_count === 1 ? "post" : "posts"}
             {state.preview.latest_title && (
@@ -122,7 +123,7 @@ export function SourcesEditor() {
               <div className="row-main">
                 <span className="row-name">{s.title ?? s.input_url}</span>
                 <span className="muted small">
-                  <span className="pill">{platformLabel(s.type)}</span> {s.input_url}
+                  <span className="pill">{s.label}</span> {s.input_url}
                 </span>
               </div>
               <button
@@ -140,11 +141,12 @@ export function SourcesEditor() {
   );
 }
 
-export function platformLabel(type: string): string {
-  if (type === "rss") return "RSS";
-  if (type === "bluesky") return "Bluesky";
-  if (type === "x") return "X";
-  return type;
+// Mirrors api/app/sources.py `normalize_source_url`: default a scheme-less feed URL to
+// https:// so the resolver fetches a URL, not a path. Bluesky @handles pass through.
+function normalizeSourceUrl(url: string): string {
+  const trimmed = url.trim();
+  if (!trimmed || trimmed.startsWith("@") || trimmed.includes("://")) return trimmed;
+  return `https://${trimmed}`;
 }
 
 // Map API failures to inline copy: 400 = unsupported platform, 422 = dead/unreadable

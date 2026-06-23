@@ -1,7 +1,17 @@
 // TanStack Query hooks — server state for the authed app. Query keys are stable so
 // mutations can target them for optimistic updates / invalidation.
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+} from "@tanstack/react-query";
 import { api, type Discover, type ImageKind, type MePatch, type User } from "../api";
+
+// Mirrors DISCOVER_PAGE_SIZE in api/app/routers/discover.py — a full page implies there
+// may be more, so we ask for the next one.
+const DISCOVER_PAGE_SIZE = 24;
 
 const keys = {
   sources: ["sources"] as const,
@@ -23,13 +33,20 @@ export function useDigestPreview() {
   return useQuery({ queryKey: keys.digestPreview, queryFn: api.digestPreview });
 }
 
-// Discover. Empty query browses the whole directory (the API lists all, capped); a term
-// filters by name. Always enabled so the Directory shows a list by default.
+// Discover. Empty query browses the whole directory; a term filters by name. Paginated for
+// infinite scroll: each page is a full list slice, fetched by offset. A short final page
+// (fewer than DISCOVER_PAGE_SIZE rows) signals the end. Always enabled so the Directory
+// shows a list by default.
 export function useDiscover(q: string) {
   const term = q.trim();
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: keys.discover(term),
-    queryFn: () => api.discover(term),
+    queryFn: ({ pageParam }) => api.discover(term, pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.length === DISCOVER_PAGE_SIZE
+        ? allPages.length * DISCOVER_PAGE_SIZE
+        : undefined,
   });
 }
 
@@ -128,9 +145,19 @@ export function useToggleSubscribe(q: string) {
     },
     onMutate: async ({ userId, subscribe }) => {
       await qc.cancelQueries({ queryKey: key });
-      const prev = qc.getQueryData<Discover[]>(key);
-      qc.setQueryData<Discover[]>(key, (old) =>
-        old?.map((d) => (d.user_id === userId ? { ...d, is_subscribed: subscribe } : d))
+      const prev = qc.getQueryData<InfiniteData<Discover[]>>(key);
+      // Flip is_subscribed across every loaded page of the infinite-query cache.
+      qc.setQueryData<InfiniteData<Discover[]>>(key, (old) =>
+        old
+          ? {
+              ...old,
+              pages: old.pages.map((page) =>
+                page.map((d) =>
+                  d.user_id === userId ? { ...d, is_subscribed: subscribe } : d
+                )
+              ),
+            }
+          : old
       );
       return { prev };
     },
