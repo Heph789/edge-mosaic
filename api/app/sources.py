@@ -168,3 +168,29 @@ def platforms_for(session: Session, user_ids: Iterable[int]) -> dict[int, list[s
     for uid, stype, input_url, resolved in rows:
         out.setdefault(uid, set()).add(detect_label(stype, input_url, resolved))
     return {uid: sorted(labels) for uid, labels in out.items()}
+
+
+def platform_pills_for(
+    session: Session, user_ids: Iterable[int]
+) -> dict[int, list[tuple[str, str]]]:
+    """{user_id: [(label, url), …] sorted by label}. One pill per distinct platform label;
+    `url` is the earliest-added source of that platform (the 'first match' the directory pill
+    links out to). The human-facing input_url is used so the pill opens the page the user
+    pasted. Feeders with no sources are absent."""
+    ids = list(user_ids)
+    if not ids:
+        return {}
+    rows = session.execute(
+        select(Source.user_id, Source.type, Source.input_url, Source.resolved_feed_url)
+        .where(Source.user_id.in_(ids))
+        .order_by(Source.created_at)  # earliest first → first source of a label wins
+    ).all()
+    # user_id -> {label: first url seen}
+    out: dict[int, dict[str, str]] = {}
+    for uid, stype, input_url, resolved in rows:
+        label = detect_label(stype, input_url, resolved)
+        out.setdefault(uid, {}).setdefault(label, input_url)
+    return {
+        uid: sorted(by_label.items(), key=lambda lp: lp[0])
+        for uid, by_label in out.items()
+    }

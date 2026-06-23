@@ -18,6 +18,7 @@ export const testUser: User = {
   bio: null,
   contact_email: null,
   contact_phone: null,
+  contact_telegram: null,
   profile_image_url: null,
   tile_image_url: null,
   visibility: "community",

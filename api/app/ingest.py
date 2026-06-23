@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .adapters import get_adapter
-from .models import Item, Source, utcnow
+from .models import SOURCE_STATUS_ACTIVE, Item, Source, utcnow
 
 
 @dataclass
@@ -75,6 +75,9 @@ def scrape_source(session: Session, source: Source) -> SourceResult:
         result.new_items += 1
 
     source.last_success_at = utcnow()
+    # A successful scrape promotes an 'unverified' source to 'active' (it reads now). We never
+    # demote on failure here — a transient error shouldn't silently drop a live feed from digests.
+    source.status = SOURCE_STATUS_ACTIVE
     result.ok = True
     session.commit()
     return result

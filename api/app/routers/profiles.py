@@ -27,6 +27,7 @@ def _profile_sources(db, user_id: int) -> list[ProfileSourceOut]:
             label=detect_label(s.type, s.input_url, s.resolved_feed_url),
             url=s.input_url,
             title=s.title,
+            status=s.status,
         )
         for s in rows
     ]

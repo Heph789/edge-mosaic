@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from ..deps import CurrentUser, DbDep
 from ..ingest import scrape_source
-from ..models import Source
+from ..models import SOURCE_STATUS_UNVERIFIED, Source
 from ..schemas import SourceOut, SourcePreviewOut, UrlIn
 from ..sources import (
     SourceRejected,
@@ -67,14 +67,15 @@ def add_source(body: UrlIn, user: CurrentUser, db: DbDep) -> SourceOut:
     db.flush()  # assign source.id before the inline first-scrape
 
     # Inline first-scrape: fetch + dedup-insert now so the digest preview isn't empty
-    # right after adding. scrape_source resolves the feed (raises on a dead one).
+    # right after adding. scrape_source commits the source either way (it persists
+    # last_checked_at even on failure).
     result = scrape_source(db, source)
     if not result.ok:
-        db.rollback()
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
-            f"Couldn't read a feed from that URL: {result.error}",
-        )
+        # Couldn't read a feed (dead/unsupported/substack-profile/etc.). We no longer reject:
+        # keep the source as 'unverified' so it shows on the profile with a warning and is
+        # excluded from digests. A later scrape-cron run can promote it to 'active'.
+        source.status = SOURCE_STATUS_UNVERIFIED
+        db.commit()
     return SourceOut.from_source(source)
 
 

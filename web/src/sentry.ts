@@ -48,3 +48,24 @@ export function reportError(error: unknown, context?: Record<string, unknown>): 
 export function setSentryUser(user: { id: number; email: string } | null): void {
   Sentry.setUser(user ? { id: String(user.id), email: user.email } : null);
 }
+
+// --- onboarding funnel ---------------------------------------------------------------
+// Errors-only Sentry isn't a funnel tool, so we emit our own lightweight step events:
+// an info-level breadcrumb + message tagged with the step and a per-run session id. The
+// last "view" event a session produced is where that user dropped off. `phase` is "view"
+// when a step is shown and "complete" when the user advances past it (or finishes). When
+// the DSN is unset (local dev), these degrade to no-ops like every other helper here.
+export function trackOnboardingStep(
+  step: string,
+  phase: "view" | "complete",
+  sessionId: string
+): void {
+  const tags = { onboarding_session: sessionId, onboarding_step: step, onboarding_phase: phase };
+  Sentry.addBreadcrumb({
+    category: "onboarding",
+    message: `${phase}: ${step}`,
+    level: "info",
+    data: tags,
+  });
+  Sentry.captureMessage(`onboarding ${phase}: ${step}`, { level: "info", tags });
+}

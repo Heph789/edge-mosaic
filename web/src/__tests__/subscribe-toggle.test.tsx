@@ -15,12 +15,18 @@ describe("Directory subscribe toggle", () => {
       meHandler(),
       http.get(`${API}/discover`, () =>
         HttpResponse.json([
-          { user_id: 2, display_name: "Bob R.", platforms: ["rss"], is_subscribed: subscribed },
+          {
+            user_id: 2,
+            display_name: "Bob R.",
+            platforms: [{ label: "Blog", url: "https://bob.example" }],
+            links: [],
+            is_subscribed: subscribed,
+          },
         ])
       ),
       http.post(`${API}/subscriptions`, () => {
         subscribed = true;
-        return HttpResponse.json({ feeder_id: 2, display_name: "Bob R.", platforms: ["rss"] });
+        return HttpResponse.json({ feeder_id: 2, display_name: "Bob R.", platforms: ["Blog"] });
       })
     );
 
@@ -41,7 +47,13 @@ describe("Directory subscribe toggle", () => {
       meHandler(),
       http.get(`${API}/discover`, () =>
         HttpResponse.json([
-          { user_id: 2, display_name: "Bob R.", platforms: ["rss"], is_subscribed: false },
+          {
+            user_id: 2,
+            display_name: "Bob R.",
+            platforms: [{ label: "Blog", url: "https://bob.example" }],
+            links: [],
+            is_subscribed: false,
+          },
         ])
       ),
       http.post(`${API}/subscriptions`, async () => {

@@ -168,6 +168,10 @@ def update_me(body: UpdateMeIn, user: CurrentUser, db: DbDep) -> UserOut:
         user.contact_email = _clean_optional(body.contact_email)
     if body.contact_phone is not None:
         user.contact_phone = _clean_optional(body.contact_phone)
+    if body.contact_telegram is not None:
+        # Store the bare handle (strip a leading '@' and any wrapping whitespace).
+        handle = _clean_optional(body.contact_telegram)
+        user.contact_telegram = handle.lstrip("@") if handle else handle
     if body.visibility is not None:
         if body.visibility not in config.VALID_VISIBILITIES:
             raise HTTPException(

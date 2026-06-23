@@ -31,7 +31,7 @@ from .config import (
     SHORT_ITEMS_CAP,
     WEEKLY_WINDOW_DAYS,
 )
-from .models import Item, Source, Subscription, User, utcnow
+from .models import SOURCE_STATUS_ACTIVE, Item, Source, Subscription, User, utcnow
 
 
 @dataclass
@@ -130,6 +130,7 @@ def assemble_digest(
         .join(Source, Item.source_id == Source.id)
         .where(
             Source.user_id.in_(feeder_ids),
+            Source.status == SOURCE_STATUS_ACTIVE,  # 'unverified' feeds never enter a digest
             Item.published_at >= window_start,
             Item.published_at <= now,
         )

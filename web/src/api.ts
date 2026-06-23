@@ -13,12 +13,16 @@ export type Visibility = "community" | "village";
 export type ImageKind = "profile" | "tile";
 
 export type Link = { label: string; url: string };
+export type SourceStatus = "active" | "unverified";
 export type ProfileSource = {
   type: string;
   label: string; // granular display label (Substack/YouTube/Podcast/…)
   url: string;
   title: string | null;
+  status: SourceStatus; // 'unverified' = couldn't be scraped yet (excluded from digests)
 };
+// A directory-card pill: a platform label that links out to the feeder's first source.
+export type PlatformPill = { label: string; url: string };
 
 export type User = {
   id: number;
@@ -32,6 +36,7 @@ export type User = {
   bio: string | null;
   contact_email: string | null;
   contact_phone: string | null;
+  contact_telegram: string | null;
   profile_image_url: string | null;
   tile_image_url: string | null;
   visibility: Visibility;
@@ -46,6 +51,7 @@ export type PublicProfile = {
   display_name: string | null;
   bio: string | null;
   contact_email: string | null;
+  contact_telegram: string | null;
   profile_image_url: string | null;
   tile_image_url: string | null;
   cities: string[];
@@ -76,6 +82,7 @@ export type Source = {
   input_url: string;
   resolved_feed_url: string | null;
   title: string | null;
+  status: SourceStatus; // 'unverified' = couldn't be scraped yet
   last_checked_at: string | null;
   last_success_at: string | null;
   created_at: string;
@@ -92,7 +99,8 @@ export type Discover = {
   username: string;
   display_name: string | null;
   bio: string | null;
-  platforms: string[];
+  platforms: PlatformPill[]; // feeder-source pills, each links out
+  links: Link[]; // non-feeder profile links, shown as pressable pills too
   is_subscribed: boolean;
   profile_image_url: string | null;
   tile_image_url: string | null;
@@ -136,6 +144,7 @@ export type MePatch = {
   bio?: string;
   contact_email?: string;
   contact_phone?: string;
+  contact_telegram?: string;
   visibility?: Visibility;
   cities?: string[];
   links?: Link[];
