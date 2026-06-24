@@ -478,6 +478,12 @@ textarea {
   gap: 10px;
 }
 
+.section-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0 8px;
+}
+
 /* --- profile field editors --- */
 .field-label {
   font-size: 0.85rem;

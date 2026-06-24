@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, ApiError, type Link, type MePatch, type Visibility } from "../api";
 import { useAuth } from "../auth";
-import { useUpdateMe } from "../hooks/queries";
+import { useSources, useUpdateMe } from "../hooks/queries";
 import {
   BioField,
   CitiesEditor,
@@ -19,9 +19,9 @@ import { trackOnboardingStep } from "../sentry";
 // Multi-step onboarding wizard. Step 1 (display name) flips `onboarded` via PATCH /me;
 // /onboarding lives outside the RequireOnboarded guard, so later enrichment steps don't
 // bounce the user. Every step is skippable except the name. Finish → the app.
-// Sources comes before Links (feeders first — they're the point); the Photos step was
-// removed (profile photos are on hold).
-const STEPS = ["Name", "About you", "Sources", "Links", "Visibility"] as const;
+// Sources & Links are merged into one step; feeders auto-verify on input so Continue stays
+// blocked until at least one source is confirmed.
+const STEPS = ["Name", "About you", "Sources & Links", "Visibility"] as const;
 
 export function Onboarding() {
   const { user, applyUser } = useAuth();
@@ -45,6 +45,8 @@ export function Onboarding() {
   const [visibility, setVisibility] = useState<Visibility>(user?.visibility ?? "community");
 
   const updateMe = useUpdateMe(applyUser);
+  const sources = useSources();
+  const [sourcesVerifying, setSourcesVerifying] = useState(false);
   const last = step === STEPS.length - 1;
 
   // A stable id for this onboarding run so Sentry can stitch the step events into a funnel.
@@ -116,13 +118,12 @@ export function Onboarding() {
           contact_telegram: contactTelegram.trim(),
         });
       }
-      case "Links":
+      case "Sources & Links":
         return saveAndNext({
           links: links.filter((l) => l.label.trim() && l.url.trim()),
         });
       case "Visibility":
         return saveAndNext({ visibility });
-      // Sources persist immediately inside their own component.
       default:
         return saveAndNext({});
     }
@@ -194,16 +195,29 @@ export function Onboarding() {
             </>
           )}
 
-          {STEPS[step] === "Sources" && (
+          {STEPS[step] === "Sources & Links" && (
             <>
-              <p className="muted small">
-                Add the feeds you publish — they power your digest and show in the Directory.
-              </p>
-              <SourcesEditor />
+              <div className="stack">
+                <div>
+                  <h3>Feed sources</h3>
+                  <p className="muted small">
+                    Add the links to where you publish content — RSS, Substack, Bluesky, Mastodon, X, etc. New content will show up in your followers' digests.
+                  </p>
+                </div>
+                <SourcesEditor onVerifying={setSourcesVerifying} hideHint />
+              </div>
+              <hr className="section-divider" />
+              <div className="stack">
+                <div>
+                  <h3>Links</h3>
+                  <p className="muted small">
+                    Add other links — personal site, company site, other socials, etc. These won't show up in digests.
+                  </p>
+                </div>
+                <LinksEditor links={links} onChange={setLinks} hideLabel />
+              </div>
             </>
           )}
-
-          {STEPS[step] === "Links" && <LinksEditor links={links} onChange={setLinks} />}
 
           {STEPS[step] === "Visibility" && (
             <VisibilityToggle value={visibility} onChange={setVisibility} />
@@ -227,14 +241,26 @@ export function Onboarding() {
           <div className="settings-row">
             {/* Name is required; every other step can be skipped for now. */}
             {step > 0 && (
-              <button type="button" className="btn btn-ghost" onClick={onSkip}>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                disabled={
+                  STEPS[step] === "Sources & Links" &&
+                  (sourcesVerifying || (sources.data?.length ?? 0) === 0)
+                }
+                onClick={onSkip}
+              >
                 Skip
               </button>
             )}
             <button
               type="button"
               className="btn btn-primary"
-              disabled={updateMe.isPending}
+              disabled={
+                updateMe.isPending ||
+                (STEPS[step] === "Sources & Links" &&
+                  (sourcesVerifying || (sources.data?.length ?? 0) === 0))
+              }
               onClick={onNext}
             >
               {updateMe.isPending ? "Saving…" : last ? "Finish" : "Continue"}

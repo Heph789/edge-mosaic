@@ -174,17 +174,19 @@ export function CitiesEditor({
 export function LinksEditor({
   links,
   onChange,
+  hideLabel = false,
 }: {
   links: Link[];
   onChange: (next: Link[]) => void;
+  hideLabel?: boolean;
 }) {
   function set(i: number, patch: Partial<Link>) {
     onChange(links.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
   }
   return (
     <div className="field">
-      <span>Links</span>
-      <p className="muted small">Personal site, portfolio, socials — not feed sources.</p>
+      {!hideLabel && <span>Links</span>}
+      {!hideLabel && <p className="muted small">Personal site, portfolio, socials — not feed sources.</p>}
       <div className="stack">
         {links.map((link, i) => (
           <div className="link-row" key={i}>

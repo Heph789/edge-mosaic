@@ -50,10 +50,9 @@ describe("Add source (two-step preview → confirm)", () => {
 
     const input = await screen.findByPlaceholderText(/example\.com.*@handle/i);
     await user.type(input, "https://blog.example.com");
-    await user.click(screen.getByRole("button", { name: /^Preview$/i }));
 
-    // Confirm card summarizes the found feed.
-    expect(await screen.findByText(/found 7 recent posts/i)).toBeInTheDocument();
+    // Auto-verification fires after the debounce; allow extra time.
+    expect(await screen.findByText(/found 7 recent posts/i, {}, { timeout: 2000 })).toBeInTheDocument();
     expect(screen.getByText(/Hello World/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Add source/i }));
@@ -102,10 +101,9 @@ describe("Add source (two-step preview → confirm)", () => {
 
     const input = await screen.findByPlaceholderText(/example\.com.*x\.com/i);
     await user.type(input, "https://x.com/jack");
-    await user.click(screen.getByRole("button", { name: /^Preview$/i }));
 
-    // Confirm card shows the X platform label, not the raw type.
-    expect(await screen.findByText(/found 3 recent posts/i)).toBeInTheDocument();
+    // Auto-verification fires after the debounce; allow extra time.
+    expect(await screen.findByText(/found 3 recent posts/i, {}, { timeout: 2000 })).toBeInTheDocument();
     expect(screen.getByText("X")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Add source/i }));

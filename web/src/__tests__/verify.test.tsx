@@ -15,7 +15,8 @@ describe("Verify", () => {
           session_token: "sess-abc",
           user: { ...testUser, onboarded: false },
         });
-      })
+      }),
+      http.get(`${API}/sources`, () => HttpResponse.json([]))
     );
 
     renderWithProviders(<AppRoutes />, { path: "/auth/verify?token=good-token" });

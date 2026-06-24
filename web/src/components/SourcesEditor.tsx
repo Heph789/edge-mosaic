@@ -1,14 +1,16 @@
 // Add / list / remove feed sources. Extracted from Profile so the onboarding wizard and
-// the Profile page share one implementation. Preview-then-confirm validates the feed
-// synchronously; if it can't be read we don't block — the source is still added (as
-// 'unverified') so it shows on the profile with a warning, just not in followers' digests.
-import { useState, type FormEvent } from "react";
+// the Profile page share one implementation. Typing or pasting a URL auto-triggers
+// verification (debounced); confirm validates client-side. If the feed can't be read we
+// don't block — the source is still added (as 'unverified') so it shows on the profile
+// with a warning, just not in followers' digests.
+import { useState, useEffect, useRef } from "react";
 import { api, ApiError, type SourcePreview } from "../api";
 import { useAddSource, useDeleteSource, useSources } from "../hooks/queries";
 import { UnverifiedBadge } from "./UnverifiedBadge";
 
 type AddState =
   | { step: "idle" }
+  | { step: "debouncing" }
   | { step: "previewing" }
   | { step: "confirm"; preview: SourcePreview }
   // Preview couldn't read a feed. The user can still add it — same "Add source" action,
@@ -16,7 +18,13 @@ type AddState =
   | { step: "warn"; message: string }
   | { step: "adding" };
 
-export function SourcesEditor() {
+export function SourcesEditor({
+  onVerifying,
+  hideHint = false,
+}: {
+  onVerifying?: (v: boolean) => void;
+  hideHint?: boolean;
+} = {}) {
   const sources = useSources();
   const addSource = useAddSource();
   const deleteSource = useDeleteSource();
@@ -25,23 +33,41 @@ export function SourcesEditor() {
   const [state, setState] = useState<AddState>({ step: "idle" });
   const [error, setError] = useState<string | null>(null);
 
-  const busy = state.step === "previewing" || state.step === "adding";
+  // Stale-request guard: each verify run gets an id; results from cancelled runs are dropped.
+  const verifyIdRef = useRef(0);
+
+  const busy = state.step === "adding";
   const substackProfile = isSubstackProfileUrl(url);
 
-  async function onPreview(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
+  // Auto-verify after the user stops typing (or pastes a URL).
+  useEffect(() => {
     const trimmed = url.trim();
-    if (!trimmed) return;
-    setState({ step: "previewing" });
-    try {
-      const preview = await api.previewSource(trimmed);
-      setState({ step: "confirm", preview });
-    } catch (err) {
-      // Couldn't read a feed — don't dead-end the user. Offer to add it anyway (unverified).
-      setState({ step: "warn", message: errorText(err) });
+    if (!trimmed) {
+      setState((s) => (s.step !== "adding" ? { step: "idle" } : s));
+      return;
     }
-  }
+    setState((s) => (s.step === "adding" ? s : { step: "debouncing" }));
+    const myId = ++verifyIdRef.current;
+    const timer = setTimeout(async () => {
+      setState({ step: "previewing" });
+      setError(null);
+      try {
+        const preview = await api.previewSource(trimmed);
+        if (verifyIdRef.current !== myId) return;
+        setState({ step: "confirm", preview });
+      } catch (err) {
+        if (verifyIdRef.current !== myId) return;
+        setState({ step: "warn", message: errorText(err) });
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [url]);
+
+  // Block the parent's Continue button any time a URL is sitting in the input —
+  // the user must either add it or cancel before proceeding.
+  useEffect(() => {
+    onVerifying?.(url.trim().length > 0);
+  }, [url, onVerifying]);
 
   async function onAdd() {
     if (state.step !== "confirm" && state.step !== "warn") return;
@@ -61,31 +87,34 @@ export function SourcesEditor() {
   }
 
   function onCancel() {
+    setUrl("");
     setState({ step: "idle" });
     setError(null);
   }
 
   return (
     <div className="stack">
-      <p className="muted small">
-        Paste a blog/Substack RSS URL, a Bluesky handle, or an X profile.
-      </p>
+      {!hideHint && (
+        <p className="muted small">
+          Paste a blog/Substack RSS URL, a Bluesky handle, or an X profile.
+        </p>
+      )}
 
-      <form onSubmit={onPreview} className="settings-row">
+      <div className="settings-row">
         <input
           placeholder="https://example.com, @handle.bsky.social, or x.com/username"
           value={url}
           onChange={(e) => {
             setUrl(e.target.value);
-            if (state.step === "warn" || state.step === "confirm") setState({ step: "idle" });
+            setError(null);
           }}
           onBlur={(e) => setUrl(normalizeSourceUrl(e.target.value))}
           disabled={busy}
         />
-        <button className="btn" type="submit" disabled={busy || url.trim().length === 0}>
-          {state.step === "previewing" ? "Checking…" : "Preview"}
-        </button>
-      </form>
+        {(state.step === "debouncing" || state.step === "previewing") && (
+          <span className="muted small">Checking…</span>
+        )}
+      </div>
 
       {/* Substack profile → publication hint, detectable client-side as they type. */}
       {substackProfile && (

@@ -25,6 +25,7 @@ function wizardHandlers() {
   return [
     availableHandler,
     http.get(`${API}/me`, () => HttpResponse.json(current)),
+    http.get(`${API}/sources`, () => HttpResponse.json([])),
     http.patch(`${API}/me`, async ({ request }) => {
       const patch = (await request.json()) as Record<string, unknown>;
       const { display_name, ...rest } = patch;
@@ -47,6 +48,7 @@ describe("Onboarding wizard", () => {
     server.use(
       availableHandler,
       http.get(`${API}/me`, () => HttpResponse.json(current)),
+      http.get(`${API}/sources`, () => HttpResponse.json([])),
       http.patch(`${API}/me`, async ({ request }) => {
         const patch = (await request.json()) as Record<string, unknown>;
         patches.push(patch);
@@ -66,7 +68,7 @@ describe("Onboarding wizard", () => {
     renderWithProviders(<AppRoutes />, { path: "/onboarding", authed: true });
 
     // Step 1 — display name + username are required.
-    expect(await screen.findByText(/Step 1 of 5/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Step 1 of 4/i)).toBeInTheDocument();
     await user.type(screen.getByPlaceholderText("Jane S."), "Chase B.");
     const handle = screen.getByPlaceholderText("janes");
     await user.clear(handle);
@@ -74,11 +76,11 @@ describe("Onboarding wizard", () => {
     await user.click(screen.getByRole("button", { name: /Continue/i }));
 
     // Step 2 — About: fill the bio and advance.
-    expect(await screen.findByText(/Step 2 of 5/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Step 2 of 4/i)).toBeInTheDocument();
     await user.type(screen.getByPlaceholderText(/sentence or two/i), "Builder.");
     await user.click(screen.getByRole("button", { name: /Continue/i }));
 
-    expect(await screen.findByText(/Step 3 of 5/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Step 3 of 4/i)).toBeInTheDocument();
 
     // First PATCH set the display name + chosen username; the second saved the bio.
     expect(patches[0]).toEqual({ display_name: "Chase B.", username: "chaseb" });
@@ -90,12 +92,12 @@ describe("Onboarding wizard", () => {
     const user = userEvent.setup();
     renderWithProviders(<AppRoutes />, { path: "/onboarding", authed: true });
 
-    await screen.findByText(/Step 1 of 5/i);
+    await screen.findByText(/Step 1 of 4/i);
     await user.click(screen.getByRole("button", { name: /Continue/i }));
 
     expect(await screen.findByText(/Please enter a display name/i)).toBeInTheDocument();
     // Still on step 1.
-    expect(screen.getByText(/Step 1 of 5/i)).toBeInTheDocument();
+    expect(screen.getByText(/Step 1 of 4/i)).toBeInTheDocument();
   });
 
   it("requires a username before leaving step 1", async () => {
@@ -103,12 +105,12 @@ describe("Onboarding wizard", () => {
     const user = userEvent.setup();
     renderWithProviders(<AppRoutes />, { path: "/onboarding", authed: true });
 
-    await screen.findByText(/Step 1 of 5/i);
+    await screen.findByText(/Step 1 of 4/i);
     await user.type(screen.getByPlaceholderText("Jane S."), "Chase B.");
     await user.clear(screen.getByPlaceholderText("janes"));
     await user.click(screen.getByRole("button", { name: /Continue/i }));
 
     expect(await screen.findByText(/Please choose a username/i)).toBeInTheDocument();
-    expect(screen.getByText(/Step 1 of 5/i)).toBeInTheDocument();
+    expect(screen.getByText(/Step 1 of 4/i)).toBeInTheDocument();
   });
 });
