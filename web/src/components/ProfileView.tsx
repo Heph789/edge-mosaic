@@ -2,14 +2,16 @@
 // page. Kept here (not in Directory) so it has no dependency back on the Directory page.
 import type { ProfileSource, PublicProfile } from "../api";
 import { UnverifiedBadge } from "./UnverifiedBadge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { initialsOf } from "@/lib/mosaic";
 
-export function Avatar({ url, name }: { url: string | null; name: string | null }) {
-  if (url) return <img className="avatar" src={url} alt="" />;
-  const initial = (name ?? "?").trim().charAt(0).toUpperCase() || "?";
+export function Avatar60({ url, name, handle }: { url: string | null; name: string | null; handle: string }) {
   return (
-    <span className="avatar avatar-fallback" aria-hidden>
-      {initial}
-    </span>
+    <Avatar className="size-14 border border-border">
+      {url && <AvatarImage src={url} alt="" />}
+      <AvatarFallback className="text-lg">{initialsOf(name, handle)}</AvatarFallback>
+    </Avatar>
   );
 }
 
@@ -23,49 +25,61 @@ export function ProfileView({
   onToggleFollow: (subscribe: boolean) => void;
 }) {
   return (
-    <>
+    <div className="flex flex-col gap-4">
       {p.tile_image_url && (
-        <img className="profile-tile" src={p.tile_image_url} alt="" />
+        <img
+          src={p.tile_image_url}
+          alt=""
+          className="h-40 w-full rounded-xl border border-border object-cover"
+        />
       )}
-      <div className="profile-head">
-        <Avatar url={p.profile_image_url} name={p.display_name} />
-        <div className="row-text">
-          <h2>{p.display_name ?? "Unnamed"}</h2>
-          <span className="muted small">@{p.username}</span>
-          {p.cities.length > 0 && (
-            <span className="muted small">{p.cities.join(" · ")}</span>
-          )}
+      <div className="flex items-start gap-4">
+        <Avatar60 url={p.profile_image_url} name={p.display_name} handle={p.username} />
+        <div className="min-w-0 flex-1">
+          <h2 className="font-display text-2xl font-semibold tracking-tight">
+            {p.display_name ?? "Unnamed"}
+          </h2>
+          <p className="font-mono text-xs text-muted-foreground">
+            @{p.username}
+            {p.cities.length > 0 && ` · ${p.cities.join(" · ")}`}
+          </p>
         </div>
       </div>
 
-      {p.bio && <p>{p.bio}</p>}
+      {p.bio && <p className="text-[15px] leading-relaxed text-foreground/85">{p.bio}</p>}
 
       <SourceLinks sources={p.sources} />
 
       {p.links.length > 0 && (
-        <div className="profile-section">
-          <span className="field-label">Links</span>
-          <ul className="profile-links">
+        <Section label="Links">
+          <div className="flex flex-wrap gap-1.5">
             {p.links.map((l, i) => (
-              <li key={i}>
-                <a href={l.url} target="_blank" rel="noreferrer noopener">
-                  {l.label}
-                </a>
-              </li>
+              <a
+                key={i}
+                href={l.url}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="rounded-full border border-border px-2.5 py-1 font-mono text-[11px] text-muted-foreground transition-colors hover:border-marigold hover:text-foreground"
+              >
+                {l.label}
+              </a>
             ))}
-          </ul>
-        </div>
+          </div>
+        </Section>
       )}
 
       {(p.contact_email || p.contact_telegram) && (
-        <p className="muted small">
+        <p className="text-sm text-muted-foreground">
           Contact:{" "}
           {p.contact_email && (
-            <a href={`mailto:${p.contact_email}`}>{p.contact_email}</a>
+            <a className="text-foreground hover:underline" href={`mailto:${p.contact_email}`}>
+              {p.contact_email}
+            </a>
           )}
           {p.contact_email && p.contact_telegram && " · "}
           {p.contact_telegram && (
             <a
+              className="text-foreground hover:underline"
               href={`https://t.me/${p.contact_telegram}`}
               target="_blank"
               rel="noreferrer noopener"
@@ -76,14 +90,26 @@ export function ProfileView({
         </p>
       )}
 
-      <button
-        className={p.is_subscribed ? "btn btn-subscribed" : "btn btn-primary"}
+      <Button
+        className="self-start"
+        variant={p.is_subscribed ? "subscribed" : "default"}
         onClick={() => onToggleFollow(!p.is_subscribed)}
         disabled={pending}
       >
-        {p.is_subscribed ? "Following" : "Follow"}
-      </button>
-    </>
+        {p.is_subscribed ? "✓ Subscribed" : "Subscribe"}
+      </Button>
+    </div>
+  );
+}
+
+function Section({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.12em] text-faint">
+        {label}
+      </p>
+      {children}
+    </div>
   );
 }
 
@@ -91,21 +117,27 @@ export function ProfileView({
 // platform pill). Falls back to a muted note when the feeder has no sources.
 function SourceLinks({ sources }: { sources: ProfileSource[] }) {
   if (sources.length === 0)
-    return <span className="muted small">no sources yet</span>;
+    return <span className="text-sm text-muted-foreground">no sources yet</span>;
   return (
-    <div className="profile-section">
-      <span className="field-label">Feeds</span>
-      <ul className="profile-links profile-sources">
+    <Section label="Feeds">
+      <ul className="flex flex-col gap-2">
         {sources.map((s, i) => (
-          <li key={i}>
-            <a href={s.url} target="_blank" rel="noreferrer noopener">
+          <li key={i} className="flex min-w-0 items-center gap-2">
+            <a
+              href={s.url}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="truncate text-sm underline-offset-2 hover:underline"
+            >
               {s.title ?? s.url}
             </a>
-            <span className="pill">{s.label}</span>
+            <span className="shrink-0 rounded-full border border-border bg-secondary px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
+              {s.label}
+            </span>
             {s.status === "unverified" && <UnverifiedBadge />}
           </li>
         ))}
       </ul>
-    </div>
+    </Section>
   );
 }

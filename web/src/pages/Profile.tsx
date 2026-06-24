@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from "react";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Link as RouterLink, useLocation, useNavigate } from "react-router-dom";
 import { ApiError, type Link, type Visibility } from "../api";
 import { useAuth } from "../auth";
 import { useUpdateMe } from "../hooks/queries";
@@ -15,6 +15,9 @@ import {
   VisibilityToggle,
 } from "../components/ProfileFields";
 import { SourcesEditor } from "../components/SourcesEditor";
+import { Button } from "@/components/ui/button";
+import { Card, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 
 export function Profile() {
   const { user, logout } = useAuth();
@@ -26,30 +29,42 @@ export function Profile() {
   }
 
   return (
-    <div className="page stack">
-      <div className="page-head">
-        <h1>Profile</h1>
-        <button className="btn btn-ghost" onClick={handleLogout}>
-          Log out
-        </button>
-      </div>
-      <p className="muted small">{user?.email}</p>
-      {user && (
-        <p className="muted small">
-          Profile:{" "}
-          <RouterLink to={`/p/${user.username}`}>
-            edge-mosaic.com/p/{user.username}
-          </RouterLink>
-        </p>
-      )}
-      {user && user.villages.length > 0 && (
-        <p className="muted small">Village: {user.villages.join(", ")}</p>
-      )}
+    <div className="absolute inset-0 overflow-y-auto">
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-5">
+        <header className="flex items-start justify-between">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-faint">
+              Edge Mosaic
+            </p>
+            <h1 className="font-display text-2xl font-bold tracking-tight">Profile</h1>
+          </div>
+          <Button variant="ghost" size="sm" onClick={handleLogout}>
+            Log out
+          </Button>
+        </header>
 
-      <DisplayNameSection />
-      <PhotoSection />
-      <AboutSection />
-      <SourcesSection />
+        <div className="flex flex-col gap-0.5 text-sm text-muted-foreground">
+          <span>{user?.email}</span>
+          {user && (
+            <span>
+              Public profile:{" "}
+              <RouterLink
+                to={`/p/${user.username}`}
+                className="text-foreground underline-offset-2 hover:underline"
+              >
+                edge-mosaic.com/p/{user.username}
+              </RouterLink>
+            </span>
+          )}
+          {user && user.villages.length > 0 && (
+            <span>Village: {user.villages.join(", ")}</span>
+          )}
+        </div>
+
+        <DisplayNameSection />
+        <PhotosSection />
+        <AboutSection />
+      </div>
     </div>
   );
 }
@@ -81,38 +96,59 @@ function DisplayNameSection() {
   }
 
   return (
-    <section className="card stack">
-      <h2>Display name</h2>
-      <form onSubmit={onSubmit} className="settings-row">
-        <input
+    <Card className="flex flex-col gap-3">
+      <CardTitle>Display name</CardTitle>
+      <form onSubmit={onSubmit} className="flex items-center gap-2">
+        <Input
           value={name}
           onChange={(e) => {
             setName(e.target.value);
             setStatus(null);
           }}
         />
-        <button className="btn btn-primary" type="submit" disabled={updateMe.isPending}>
+        <Button type="submit" disabled={updateMe.isPending} className="shrink-0">
           {updateMe.isPending ? "Saving…" : "Save"}
-        </button>
+        </Button>
       </form>
-      {status && <p className="success small">{status}</p>}
-      {error && <p className="error small">{error}</p>}
-    </section>
+      {status && <p className="text-xs text-[#1c7c3c]">{status}</p>}
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </Card>
   );
 }
 
-function PhotoSection() {
+// Profile photo + mosaic tile. The tile section carries id="tile" so the Directory's
+// "Add your tile" control can deep-link straight to it (/profile#tile).
+function PhotosSection() {
   const { user, applyUser } = useAuth();
+  const { hash } = useLocation();
+  const tileRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (hash === "#tile") tileRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [hash]);
+
   return (
-    <section className="card stack">
-      <h2>Photo</h2>
-      <ImageUploader
-        kind="profile"
-        label="Profile photo"
-        url={user?.profile_image_url ?? null}
-        onUser={applyUser}
-      />
-    </section>
+    <Card className="flex flex-col gap-4" id="tile">
+      <CardTitle>Photos</CardTitle>
+      <div ref={tileRef} className="flex flex-wrap gap-8">
+        <ImageUploader
+          kind="tile"
+          label="Mosaic tile"
+          url={user?.tile_image_url ?? null}
+          onUser={applyUser}
+        />
+        <ImageUploader
+          kind="profile"
+          label="Profile photo"
+          url={user?.profile_image_url ?? null}
+          onUser={applyUser}
+        />
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Your tile is your square in the Directory mosaic. Without one, we generate a tile
+        from your name.
+      </p>
+    </Card>
   );
 }
 
@@ -168,9 +204,9 @@ function AboutSection() {
   }
 
   return (
-    <section className="card stack">
-      <h2>About</h2>
-      <form onSubmit={onSubmit} className="stack">
+    <Card className="flex flex-col gap-4">
+      <CardTitle>About</CardTitle>
+      <form onSubmit={onSubmit} className="flex flex-col gap-5">
         <BioField value={bio} onChange={setBio} />
         <CitiesEditor cities={cities} onChange={setCities} />
         <ContactFields
@@ -181,25 +217,21 @@ function AboutSection() {
           onPhone={setContactPhone}
           onTelegram={setContactTelegram}
         />
+        <div className="flex flex-col gap-1.5">
+          <span className="text-sm font-medium">Sources</span>
+          <SourcesEditor hideHint />
+        </div>
         <LinksEditor links={links} onChange={setLinks} />
         <VisibilityToggle value={visibility} onChange={setVisibility} />
-        <div className="settings-row">
-          <button className="btn btn-primary" type="submit" disabled={updateMe.isPending}>
+        <div>
+          <Button type="submit" disabled={updateMe.isPending}>
             {updateMe.isPending ? "Saving…" : "Save"}
-          </button>
+          </Button>
         </div>
-        {status && <p className="success small">{status}</p>}
-        {error && <p className="error small">{error}</p>}
+        {status && <p className="text-xs text-[#1c7c3c]">{status}</p>}
+        {error && <p className="text-xs text-destructive">{error}</p>}
       </form>
-    </section>
+    </Card>
   );
 }
 
-function SourcesSection() {
-  return (
-    <section className="card stack">
-      <h2>Your sources</h2>
-      <SourcesEditor />
-    </section>
-  );
-}

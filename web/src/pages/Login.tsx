@@ -1,5 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { api } from "../api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 // Privacy-preserving login: we POST the email and ALWAYS show the same generic message,
 // whether or not the address is on the allowlist (§2 — never reveal membership).
@@ -22,18 +25,24 @@ export function Login() {
   }
 
   return (
-    <div className="centered">
-      <div className="card narrow">
-        <h1>Edge Mosaic</h1>
+    <div className="grid h-full place-items-center px-5">
+      <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-7 shadow-sm">
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-faint">
+          Welcome to
+        </p>
+        <h1 className="mb-5 font-display text-3xl font-bold tracking-tight">
+          Edge Mosaic
+        </h1>
         {sent ? (
-          <p className="muted" role="status">
+          <p className="text-muted-foreground" role="status">
             If your email is eligible, a login link is on its way. Check your inbox.
           </p>
         ) : (
-          <form onSubmit={onSubmit} className="stack">
-            <label className="field">
-              <span>Edge email</span>
-              <input
+          <form onSubmit={onSubmit} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="login-email">Edge email</Label>
+              <Input
+                id="login-email"
                 type="email"
                 required
                 autoFocus
@@ -41,10 +50,10 @@ export function Login() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
               />
-            </label>
-            <button className="btn btn-primary" type="submit" disabled={submitting}>
+            </div>
+            <Button type="submit" disabled={submitting} className="w-full">
               {submitting ? "Sending…" : "Send me a login link"}
-            </button>
+            </Button>
           </form>
         )}
       </div>

@@ -240,6 +240,7 @@ class DiscoverOut(BaseModel):
     username: str
     display_name: str | None
     bio: str | None  # short context shown under the name in the directory
+    city: str | None  # primary city, shown as the location line in the list view
     platforms: list[PlatformPillOut]  # feeder-source pills, each links out
     links: list[LinkOut]  # non-feeder profile links, shown as pressable pills too
     is_subscribed: bool

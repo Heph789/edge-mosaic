@@ -7,6 +7,8 @@ import {
   BioField,
   CitiesEditor,
   ContactFields,
+  Field,
+  ImageUploader,
   isValidEmail,
   isValidPhone,
   isValidTelegram,
@@ -15,6 +17,9 @@ import {
 } from "../components/ProfileFields";
 import { SourcesEditor } from "../components/SourcesEditor";
 import { trackOnboardingStep } from "../sentry";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 // Multi-step onboarding wizard. Step 1 (display name) flips `onboarded` via PATCH /me;
 // /onboarding lives outside the RequireOnboarded guard, so later enrichment steps don't
@@ -43,6 +48,9 @@ export function Onboarding() {
   const [contactTelegram, setContactTelegram] = useState(user?.contact_telegram ?? "");
   const [links, setLinks] = useState<Link[]>(user?.links ?? []);
   const [visibility, setVisibility] = useState<Visibility>(user?.visibility ?? "community");
+  // Surface the "name required" message only after a failed Continue, so it doesn't nag
+  // before the user has typed anything.
+  const [nameTouched, setNameTouched] = useState(false);
 
   const updateMe = useUpdateMe(applyUser);
   const sources = useSources();
@@ -56,6 +64,28 @@ export function Onboarding() {
   useEffect(() => {
     trackOnboardingStep(STEPS[step], "view", sessionId);
   }, [step, sessionId]);
+
+  // --- inline validation -----------------------------------------------------------------
+  const nameError = !name.trim() ? "Please enter a display name." : null;
+  const usernameError =
+    !username.trim()
+      ? "Please choose a username."
+      : usernameStatus === "invalid"
+        ? "3–30 characters: letters, numbers, - or _."
+        : usernameStatus === "taken"
+          ? "That username is already taken."
+          : null;
+  const nameStepValid = !nameError && !usernameError;
+  const aboutValid =
+    isValidEmail(contactEmail) && isValidPhone(contactPhone) && isValidTelegram(contactTelegram);
+  const sourcesBlocked =
+    STEPS[step] === "Sources & Links" &&
+    (sourcesVerifying || (sources.data?.length ?? 0) === 0);
+  const continueDisabled =
+    updateMe.isPending ||
+    sourcesBlocked ||
+    (STEPS[step] === "Name" && !nameStepValid) ||
+    (STEPS[step] === "About you" && !aboutValid);
 
   // Persist the fields owned by the current step, then advance (or finish).
   async function saveAndNext(patch: MePatch) {
@@ -75,41 +105,15 @@ export function Onboarding() {
   function onNext() {
     switch (STEPS[step]) {
       case "Name": {
-        const trimmed = name.trim();
-        const handle = username.trim().toLowerCase();
-        if (!trimmed) {
-          setError("Please enter a display name.");
-          return;
-        }
-        if (!handle) {
-          setError("Please choose a username.");
-          return;
-        }
-        if (usernameStatus === "invalid") {
-          setError("Usernames are 3–30 characters: letters, numbers, - or _.");
-          return;
-        }
-        if (usernameStatus === "taken") {
-          setError("That username is already taken.");
-          return;
-        }
-        // A still-"checking" username is re-validated server-side (409/422 surfaces here).
-        return saveAndNext({ display_name: trimmed, username: handle });
+        setNameTouched(true);
+        if (!nameStepValid) return;
+        return saveAndNext({
+          display_name: name.trim(),
+          username: username.trim().toLowerCase(),
+        });
       }
       case "About you": {
-        // Contact fields are optional, but a *filled* one must be structurally valid.
-        if (!isValidEmail(contactEmail)) {
-          setError("Enter a valid email address (or clear it).");
-          return;
-        }
-        if (!isValidPhone(contactPhone)) {
-          setError("Enter a valid phone number (or leave it blank).");
-          return;
-        }
-        if (!isValidTelegram(contactTelegram)) {
-          setError("Telegram handle is 5–32 characters: letters, numbers, or underscores.");
-          return;
-        }
+        if (!aboutValid) return;
         return saveAndNext({
           bio: bio.trim(),
           cities: cities.map((c) => c.trim()).filter(Boolean),
@@ -136,38 +140,51 @@ export function Onboarding() {
   }
 
   return (
-    <div className="centered">
-      <div className="card wizard stack">
-        <div className="wizard-head">
-          <h1>Set up your profile</h1>
-          <p className="muted small">
+    <div className="flex h-full flex-col bg-background">
+      <header className="shrink-0 px-5 pt-6">
+        <div className="mx-auto w-full max-w-lg">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-faint">
+            Edge Mosaic
+          </p>
+          <h1 className="font-display text-2xl font-bold tracking-tight">
+            Set up your profile
+          </h1>
+          <p className="mt-1 font-mono text-xs text-muted-foreground">
             Step {step + 1} of {STEPS.length} — {STEPS[step]}
           </p>
-          <div className="wizard-progress" aria-hidden>
+          <div className="mt-3 flex gap-1.5" aria-hidden>
             {STEPS.map((s, i) => (
-              <span key={s} className={`dot ${i <= step ? "dot-on" : ""}`} />
+              <span
+                key={s}
+                className={cn(
+                  "h-1 flex-1 rounded-full",
+                  i <= step ? "bg-marigold" : "bg-border"
+                )}
+              />
             ))}
           </div>
         </div>
+      </header>
 
-        <div className="wizard-body stack">
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6">
+        <div className="mx-auto flex w-full max-w-lg flex-col gap-5">
           {STEPS[step] === "Name" && (
             <>
-              <label className="field">
-                <span>Display name</span>
-                <input
+              <Field
+                label="Display name"
+                hint="Shown on your digests and in the Directory."
+                error={nameTouched ? nameError ?? undefined : undefined}
+              >
+                <Input
                   autoFocus
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Jane S."
+                  className={cn(nameTouched && nameError && "border-destructive")}
                 />
-                <span className="muted small">
-                  Shown on your digests and in the Directory.
-                </span>
-              </label>
-              <label className="field">
-                <span>Username</span>
-                <input
+              </Field>
+              <Field label="Username">
+                <Input
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="janes"
@@ -176,12 +193,30 @@ export function Onboarding() {
                   spellCheck={false}
                 />
                 <UsernameHint username={username} status={usernameStatus} />
-              </label>
+              </Field>
             </>
           )}
 
           {STEPS[step] === "About you" && (
             <>
+              <div className="flex flex-wrap gap-6">
+                <ImageUploader
+                  kind="tile"
+                  label="Mosaic tile"
+                  url={user?.tile_image_url ?? null}
+                  onUser={applyUser}
+                />
+                <ImageUploader
+                  kind="profile"
+                  label="Profile photo"
+                  url={user?.profile_image_url ?? null}
+                  onUser={applyUser}
+                />
+              </div>
+              <p className="-mt-2 text-xs text-muted-foreground">
+                Your tile is your square in the Directory mosaic. Skip it and we'll generate
+                one from your name.
+              </p>
               <BioField value={bio} onChange={setBio} />
               <CitiesEditor cities={cities} onChange={setCities} />
               <ContactFields
@@ -197,21 +232,23 @@ export function Onboarding() {
 
           {STEPS[step] === "Sources & Links" && (
             <>
-              <div className="stack">
+              <div className="flex flex-col gap-3">
                 <div>
-                  <h3>Feed sources</h3>
-                  <p className="muted small">
-                    Add the links to where you publish content — RSS, Substack, Bluesky, Mastodon, X, etc. New content will show up in your followers' digests.
+                  <h3 className="font-display text-base font-semibold">Feed sources</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Add the links to where you publish content — RSS, Substack, Bluesky,
+                    Mastodon, X, etc. New content will show up in your subscribers' digests.
                   </p>
                 </div>
                 <SourcesEditor onVerifying={setSourcesVerifying} hideHint />
               </div>
-              <hr className="section-divider" />
-              <div className="stack">
+              <hr className="border-border" />
+              <div className="flex flex-col gap-3">
                 <div>
-                  <h3>Links</h3>
-                  <p className="muted small">
-                    Add other links — personal site, company site, other socials, etc. These won't show up in digests.
+                  <h3 className="font-display text-base font-semibold">Links</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Add other links — personal site, company site, other socials, etc. These
+                    won't show up in digests.
                   </p>
                 </div>
                 <LinksEditor links={links} onChange={setLinks} hideLabel />
@@ -222,14 +259,19 @@ export function Onboarding() {
           {STEPS[step] === "Visibility" && (
             <VisibilityToggle value={visibility} onChange={setVisibility} />
           )}
+
+          {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
+      </div>
 
-        {error && <p className="error">{error}</p>}
-
-        <div className="wizard-nav">
-          <button
+      <footer
+        className="shrink-0 border-t border-border bg-card px-5 py-3"
+        style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
+      >
+        <div className="mx-auto flex w-full max-w-lg items-center justify-between gap-3">
+          <Button
             type="button"
-            className="btn btn-ghost"
+            variant="ghost"
             disabled={step === 0 || updateMe.isPending}
             onClick={() => {
               setError(null);
@@ -237,37 +279,20 @@ export function Onboarding() {
             }}
           >
             Back
-          </button>
-          <div className="settings-row">
+          </Button>
+          <div className="flex items-center gap-2">
             {/* Name is required; every other step can be skipped for now. */}
             {step > 0 && (
-              <button
-                type="button"
-                className="btn btn-ghost"
-                disabled={
-                  STEPS[step] === "Sources & Links" &&
-                  (sourcesVerifying || (sources.data?.length ?? 0) === 0)
-                }
-                onClick={onSkip}
-              >
+              <Button type="button" variant="ghost" disabled={sourcesBlocked} onClick={onSkip}>
                 Skip
-              </button>
+              </Button>
             )}
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={
-                updateMe.isPending ||
-                (STEPS[step] === "Sources & Links" &&
-                  (sourcesVerifying || (sources.data?.length ?? 0) === 0))
-              }
-              onClick={onNext}
-            >
+            <Button type="button" disabled={continueDisabled} onClick={onNext}>
               {updateMe.isPending ? "Saving…" : last ? "Finish" : "Continue"}
-            </button>
+            </Button>
           </div>
         </div>
-      </div>
+      </footer>
     </div>
   );
 }
@@ -307,16 +332,24 @@ function UsernameHint({
 }) {
   const handle = username.trim().toLowerCase();
   if (status === "ok")
-    return <span className="success small">edge-mosaic.com/p/{handle} is available</span>;
+    return (
+      <span className="text-xs text-[#1c7c3c]">
+        edge-mosaic.com/p/{handle} is available
+      </span>
+    );
   if (status === "taken")
-    return <span className="error small">That username is already taken.</span>;
+    return <span className="text-xs text-destructive">That username is already taken.</span>;
   if (status === "invalid")
     return (
-      <span className="error small">3–30 characters: letters, numbers, - or _.</span>
+      <span className="text-xs text-destructive">
+        3–30 characters: letters, numbers, - or _.
+      </span>
     );
   if (status === "checking")
-    return <span className="muted small">Checking…</span>;
+    return <span className="text-xs text-muted-foreground">Checking…</span>;
   return (
-    <span className="muted small">Your profile lives at edge-mosaic.com/p/your-handle.</span>
+    <span className="text-xs text-muted-foreground">
+      Your profile lives at edge-mosaic.com/p/your-handle.
+    </span>
   );
 }

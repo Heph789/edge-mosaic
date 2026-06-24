@@ -11,7 +11,7 @@ import * as Sentry from "@sentry/react";
 import { AuthProvider } from "./auth";
 import { AppRoutes } from "./routes";
 import { initSentry, reportError } from "./sentry";
-import "./styles.css";
+import "./index.css";
 
 initSentry();
 

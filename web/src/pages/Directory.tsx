@@ -1,90 +1,352 @@
-import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { Crosshair, Plus, Search } from "lucide-react";
 import type { Discover, Link, PlatformPill } from "../api";
-import { Avatar } from "../components/ProfileView";
-import { useDiscover, useToggleSubscribe } from "../hooks/queries";
+import { useAllDiscover, useToggleSubscribeAll } from "../hooks/queries";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
+import { generatedTileBackground, initialsOf, spiral } from "@/lib/mosaic";
 
-// Debounce the raw input so we don't fire a /discover request on every keystroke (~300ms).
-function useDebouncedValue<T>(value: T, delayMs: number): T {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const id = setTimeout(() => setDebounced(value), delayMs);
-    return () => clearTimeout(id);
-  }, [value, delayMs]);
-  return debounced;
-}
+const TILE = 92;
+
+type View = "mosaic" | "list";
 
 export function Directory() {
+  const [view, setView] = useState<View>("mosaic");
   const [query, setQuery] = useState("");
+  const { data, isError, isLoading } = useAllDiscover();
+  const toggle = useToggleSubscribeAll();
   const navigate = useNavigate();
-  const debounced = useDebouncedValue(query, 300);
-  const term = debounced.trim();
-  const { data, isError, fetchNextPage, hasNextPage, isFetchingNextPage } =
-    useDiscover(term);
-  const toggle = useToggleSubscribe(term);
+  const location = useLocation();
 
-  // Flatten the paged results into one list for rendering.
-  const rows = data?.pages.flat();
+  const members = data ?? [];
 
-  // Infinite scroll: load the next page when a sentinel near the list end scrolls into view.
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const node = sentinelRef.current;
-    if (!node || !hasNextPage) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting && !isFetchingNextPage) fetchNextPage();
-      },
-      { rootMargin: "200px" } // prefetch a bit before the user hits the bottom
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  function openProfile(username: string) {
+    navigate(`/p/${username}`, { state: { backgroundLocation: location } });
+  }
+  function onToggle(row: Discover) {
+    toggle.mutate({ userId: row.user_id, subscribe: !row.is_subscribed });
+  }
 
   return (
-    <div className="page stack">
-      <h1>Directory</h1>
-      <input
-        className="search"
-        type="search"
-        autoFocus
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Filter people by name…"
-      />
-
-      {isError ? (
-        <p className="error">Couldn't load the directory. Try again.</p>
-      ) : rows && rows.length === 0 ? (
-        <p className="muted">
-          {term.length === 0 ? "No one to show yet." : `No one matches “${term}”.`}
+    <div className="absolute inset-0 flex flex-col bg-background">
+      <header className="z-10 shrink-0 border-b border-border bg-card px-4 pt-4 pb-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-faint">
+              Edge Mosaic
+            </p>
+            <h1 className="font-display text-2xl font-bold leading-tight tracking-tight">
+              Directory
+            </h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <Tabs value={view} onValueChange={(v) => setView(v as View)}>
+              <TabsList className="h-9">
+                <TabsTrigger value="mosaic" className="text-xs">Mosaic</TabsTrigger>
+                <TabsTrigger value="list" className="text-xs">List</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0 gap-1.5"
+              onClick={() => navigate("/profile#tile")}
+            >
+              <Plus className="size-3.5" />
+              Add tile
+            </Button>
+          </div>
+        </div>
+        <p className="mt-1 font-mono text-[11px] text-faint">
+          {members.length} {members.length === 1 ? "member" : "members"}
         </p>
-      ) : !rows ? (
-        <p className="muted">Loading…</p>
-      ) : (
-        <>
-          <ul className="list">
-            {rows.map((row) => (
-              <DiscoverRow
-                key={row.user_id}
-                row={row}
-                pending={toggle.isPending}
-                onOpen={() => navigate(`/p/${row.username}`)}
-                onToggle={() =>
-                  toggle.mutate({ userId: row.user_id, subscribe: !row.is_subscribed })
-                }
-              />
-            ))}
-          </ul>
-          <div ref={sentinelRef} aria-hidden />
-          {isFetchingNextPage && <p className="muted">Loading more…</p>}
-        </>
-      )}
+
+        {view === "list" && (
+          <div className="relative mt-3">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              autoFocus
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by name, role, or city…"
+              className="rounded-full pl-9"
+            />
+          </div>
+        )}
+      </header>
+
+      <div className="min-h-0 flex-1">
+        {isError ? (
+          <CenterNote>Couldn't load the directory. Try again.</CenterNote>
+        ) : isLoading ? (
+          <CenterNote>Loading the mosaic…</CenterNote>
+        ) : view === "mosaic" ? (
+          <Mosaic members={members} onOpen={openProfile} />
+        ) : (
+          <ListView
+            members={members}
+            query={query}
+            pending={toggle.isPending}
+            onOpen={openProfile}
+            onToggle={onToggle}
+          />
+        )}
+      </div>
     </div>
   );
 }
 
-function DiscoverRow({
+function CenterNote({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex h-full items-center justify-center px-6 text-center text-muted-foreground">
+      {children}
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------------------------
+// Mosaic: a drag-to-pan canvas. Real-photo tiles cluster at the centre (assigned the first
+// spiral cells); generated tiles ring outward.
+// ----------------------------------------------------------------------------------------
+function Mosaic({
+  members,
+  onOpen,
+}: {
+  members: Discover[];
+  onOpen: (username: string) => void;
+}) {
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const canvasRef = useRef<HTMLDivElement | null>(null);
+  const offset = useRef({ x: 0, y: 0 });
+  const start = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
+  const moved = useRef(false);
+  const [dragging, setDragging] = useState(false);
+  const [centered, setCentered] = useState(false);
+
+  // Real-photo members first → they take the innermost spiral cells.
+  const placed = useMemo(() => {
+    const sorted = [...members].sort(
+      (a, b) => Number(!!b.tile_image_url) - Number(!!a.tile_image_url)
+    );
+    const cells = spiral(sorted.length);
+    let extent = 0;
+    const tiles = sorted.map((m, i) => {
+      const px = cells[i].x;
+      const py = cells[i].y;
+      extent = Math.max(extent, Math.abs(px), Math.abs(py));
+      return { m, px, py };
+    });
+    return { tiles, extent: extent + TILE };
+  }, [members]);
+
+  function applyTransform() {
+    const cv = canvasRef.current;
+    if (cv) cv.style.transform = `translate3d(${offset.current.x}px, ${offset.current.y}px, 0)`;
+  }
+
+  function clamp(x: number, y: number) {
+    const vp = viewportRef.current;
+    if (!vp) return { x, y };
+    const margin = 90;
+    const ext = placed.extent;
+    const maxX = vp.clientWidth - margin + ext;
+    const minX = margin - ext;
+    const maxY = vp.clientHeight - margin + ext;
+    const minY = margin - ext;
+    return {
+      x: Math.max(minX, Math.min(maxX, x)),
+      y: Math.max(minY, Math.min(maxY, y)),
+    };
+  }
+
+  // Centre the spiral origin in the viewport on first layout.
+  useEffect(() => {
+    const vp = viewportRef.current;
+    if (!vp || centered) return;
+    offset.current = { x: vp.clientWidth / 2, y: vp.clientHeight / 2 };
+    applyTransform();
+    setCentered(true);
+  }, [centered, placed]);
+
+  function onPointerDown(e: React.PointerEvent) {
+    if (e.button != null && e.button !== 0) return;
+    start.current = {
+      x: e.clientX,
+      y: e.clientY,
+      ox: offset.current.x,
+      oy: offset.current.y,
+    };
+    moved.current = false;
+    setDragging(true);
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+  }
+  function onPointerMove(e: PointerEvent) {
+    const s = start.current;
+    if (!s) return;
+    const dx = e.clientX - s.x;
+    const dy = e.clientY - s.y;
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) moved.current = true;
+    offset.current = clamp(s.ox + dx, s.oy + dy);
+    applyTransform();
+  }
+  function onPointerUp() {
+    window.removeEventListener("pointermove", onPointerMove);
+    window.removeEventListener("pointerup", onPointerUp);
+    start.current = null;
+    setDragging(false);
+  }
+  useEffect(
+    () => () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+    },
+    []
+  );
+
+  function recenter() {
+    const vp = viewportRef.current;
+    if (!vp) return;
+    offset.current = { x: vp.clientWidth / 2, y: vp.clientHeight / 2 };
+    applyTransform();
+  }
+
+  if (members.length === 0)
+    return <CenterNote>No one to show yet.</CenterNote>;
+
+  return (
+    <div
+      ref={viewportRef}
+      className="mosaic-viewport relative h-full w-full overflow-hidden"
+      data-dragging={dragging ? "true" : "false"}
+      onPointerDown={onPointerDown}
+    >
+      <div ref={canvasRef} className="mosaic-canvas absolute left-0 top-0 h-0 w-0">
+        {placed.tiles.map(({ m, px, py }) => (
+          <MosaicTile
+            key={m.user_id}
+            row={m}
+            left={px - TILE / 2}
+            top={py - TILE / 2}
+            onOpen={() => {
+              if (!moved.current) onOpen(m.username);
+            }}
+          />
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={recenter}
+        className="absolute bottom-10 right-4 flex items-center gap-1.5 rounded-full border border-border bg-card/90 px-3 py-1.5 font-mono text-[11px] text-faint shadow-sm backdrop-blur-sm transition-colors hover:text-foreground"
+      >
+        <Crosshair className="size-3.5" />
+        Center
+      </button>
+      <div className="mosaic-hint pointer-events-none absolute inset-x-0 bottom-3 text-center font-mono text-[11px] text-faint">
+        drag to roam · tap a tile to open
+      </div>
+    </div>
+  );
+}
+
+function MosaicTile({
+  row,
+  left,
+  top,
+  onOpen,
+}: {
+  row: Discover;
+  left: number;
+  top: number;
+  onOpen: () => void;
+}) {
+  const name = row.display_name ?? "Unnamed";
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="mosaic-tile absolute overflow-hidden rounded-md border border-border bg-secondary text-left shadow-sm"
+      style={{ left, top, width: TILE, height: TILE }}
+    >
+      {row.tile_image_url ? (
+        <img
+          src={row.tile_image_url}
+          alt=""
+          draggable={false}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <span
+          className="flex h-full w-full items-center justify-center font-mono text-lg font-semibold text-ink/45"
+          style={{ background: generatedTileBackground(row.username) }}
+        >
+          {initialsOf(row.display_name, row.username)}
+        </span>
+      )}
+      <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/85 to-transparent px-2 pb-1.5 pt-5">
+        <span className="block truncate text-[11px] font-semibold leading-tight text-white">
+          {name}
+        </span>
+      </span>
+    </button>
+  );
+}
+
+// ----------------------------------------------------------------------------------------
+// List: searchable, scannable rows.
+// ----------------------------------------------------------------------------------------
+function ListView({
+  members,
+  query,
+  pending,
+  onOpen,
+  onToggle,
+}: {
+  members: Discover[];
+  query: string;
+  pending: boolean;
+  onOpen: (username: string) => void;
+  onToggle: (row: Discover) => void;
+}) {
+  const term = query.trim().toLowerCase();
+  const filtered = term
+    ? members.filter((m) =>
+        [m.display_name, m.username, m.city, m.bio]
+          .filter(Boolean)
+          .some((f) => (f as string).toLowerCase().includes(term))
+      )
+    : members;
+
+  if (filtered.length === 0)
+    return (
+      <CenterNote>
+        {term ? `No one matches “${query}”.` : "No one to show yet."}
+      </CenterNote>
+    );
+
+  return (
+    <div className="h-full overflow-y-auto px-4 py-4">
+      <ul className="mx-auto flex max-w-2xl flex-col gap-2.5">
+        {filtered.map((m) => (
+          <ListRow
+            key={m.user_id}
+            row={m}
+            pending={pending}
+            onOpen={() => onOpen(m.username)}
+            onToggle={() => onToggle(m)}
+          />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function ListRow({
   row,
   pending,
   onOpen,
@@ -95,58 +357,76 @@ function DiscoverRow({
   onOpen: () => void;
   onToggle: () => void;
 }) {
-  // Pills are anchors that open external sites, so they can't live inside the row-open
-  // <button> (nested interactive elements are invalid). They sit as a sibling below it.
+  const name = row.display_name ?? "Unnamed";
   return (
-    <li className="row">
-      <div className="row-main">
-        <button className="row-open" onClick={onOpen} type="button">
-          <Avatar url={row.profile_image_url} name={row.display_name} />
-          <span className="row-text">
-            <span className="row-name">{row.display_name ?? "Unnamed"}</span>
-            {row.bio && <span className="row-bio muted small">{row.bio}</span>}
-          </span>
+    <li className="rounded-xl border border-border bg-card p-4 transition-shadow hover:shadow-[0_4px_16px_rgba(20,16,10,0.06)]">
+      <div className="flex items-start gap-3">
+        <button
+          type="button"
+          onClick={onOpen}
+          className="flex min-w-0 flex-1 items-start gap-3 text-left"
+        >
+          <Avatar className="size-12 border border-border">
+            {row.profile_image_url && <AvatarImage src={row.profile_image_url} alt="" />}
+            <AvatarFallback>{initialsOf(row.display_name, row.username)}</AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline gap-2">
+              <span className="truncate font-semibold leading-tight">{name}</span>
+              {row.city && (
+                <span className="flex shrink-0 items-center gap-1 font-mono text-[11px] text-faint">
+                  <span className="size-1.5 rounded-full bg-border" />
+                  {row.city}
+                </span>
+              )}
+            </div>
+            {row.bio && (
+              <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{row.bio}</p>
+            )}
+          </div>
         </button>
-        <Pills platforms={row.platforms} links={row.links} />
+        <Button
+          size="sm"
+          variant={row.is_subscribed ? "subscribed" : "default"}
+          disabled={pending}
+          onClick={onToggle}
+          className="shrink-0"
+        >
+          {row.is_subscribed ? "✓ Subscribed" : "Subscribe"}
+        </Button>
       </div>
-      <button
-        className={row.is_subscribed ? "btn btn-subscribed" : "btn btn-primary"}
-        onClick={onToggle}
-        disabled={pending}
-      >
-        {row.is_subscribed ? "Following" : "Follow"}
-      </button>
+      <Pills platforms={row.platforms} links={row.links} className="mt-3 pl-[3.75rem]" />
     </li>
   );
 }
 
-// Static platform pills (no links) — used by the "Following" list, where the labels are
-// plain strings and there's nothing to link out to.
-export function Platforms({ platforms }: { platforms: string[] }) {
-  if (platforms.length === 0) return <span className="muted small">no sources yet</span>;
-  return (
-    <span className="platforms">
-      {platforms.map((p) => (
-        <span key={p} className="pill">
-          {p}
-        </span>
-      ))}
-    </span>
-  );
-}
+// ----------------------------------------------------------------------------------------
+// Pills — feeder-source pills (link out) + non-feeder profile links.
+// ----------------------------------------------------------------------------------------
+const pillClass =
+  "inline-flex items-center rounded-full border px-2.5 py-1 font-mono text-[11px] transition-colors";
 
-// Directory-card pills: one per platform (links to that platform's first source) plus the
-// feeder's non-feeder profile links. Each opens externally in a new tab; stopPropagation
-// keeps a pill click from also triggering the surrounding row.
-export function Pills({ platforms, links }: { platforms: PlatformPill[]; links: Link[] }) {
+export function Pills({
+  platforms,
+  links,
+  className,
+}: {
+  platforms: PlatformPill[];
+  links: Link[];
+  className?: string;
+}) {
   if (platforms.length === 0 && links.length === 0)
-    return <span className="muted small">no sources yet</span>;
+    return (
+      <span className={cn("text-sm text-muted-foreground", className)}>
+        no sources yet
+      </span>
+    );
   return (
-    <span className="platforms">
+    <div className={cn("flex flex-wrap gap-1.5", className)}>
       {platforms.map((p) => (
         <a
           key={`p:${p.label}`}
-          className="pill pill-link"
+          className={cn(pillClass, "border-border bg-secondary text-foreground hover:border-marigold")}
           href={p.url}
           target="_blank"
           rel="noreferrer noopener"
@@ -158,7 +438,7 @@ export function Pills({ platforms, links }: { platforms: PlatformPill[]; links: 
       {links.map((l, i) => (
         <a
           key={`l:${i}`}
-          className="pill pill-link pill-other"
+          className={cn(pillClass, "border-border bg-transparent text-muted-foreground hover:border-marigold hover:text-foreground")}
           href={l.url}
           target="_blank"
           rel="noreferrer noopener"
@@ -167,6 +447,24 @@ export function Pills({ platforms, links }: { platforms: PlatformPill[]; links: 
           {l.label}
         </a>
       ))}
-    </span>
+    </div>
+  );
+}
+
+// Static platform pills (no links) — used by the Digest tab's subscription list.
+export function Platforms({ platforms }: { platforms: string[] }) {
+  if (platforms.length === 0)
+    return <span className="text-sm text-muted-foreground">no sources yet</span>;
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {platforms.map((p) => (
+        <span
+          key={p}
+          className={cn(pillClass, "border-border bg-secondary text-muted-foreground")}
+        >
+          {p}
+        </span>
+      ))}
+    </div>
   );
 }

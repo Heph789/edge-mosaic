@@ -8,6 +8,8 @@ import {
   useUnsubscribeFeeder,
   useUpdateMe,
 } from "../hooks/queries";
+import { Button } from "@/components/ui/button";
+import { Card, CardTitle } from "@/components/ui/card";
 
 export function Digest() {
   const { user, applyUser } = useAuth();
@@ -22,71 +24,80 @@ export function Digest() {
   });
 
   return (
-    <div className="page stack">
-      <h1>Digest</h1>
-
-      <section className="card stack">
-        <h2>Delivery settings</h2>
-        <div className="settings-row">
-          <label className="field inline">
-            <span>Frequency</span>
-            <select
-              value={user?.digest_frequency ?? "weekly"}
-              disabled={updateMe.isPending}
-              onChange={(e) =>
-                updateMe.mutate({ digest_frequency: e.target.value as "weekly" | "monthly" })
-              }
-            >
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-            </select>
-          </label>
-          <label className="field inline checkbox">
-            <input
-              type="checkbox"
-              checked={user?.digest_paused ?? false}
-              disabled={updateMe.isPending}
-              onChange={(e) => updateMe.mutate({ digest_paused: e.target.checked })}
-            />
-            <span>Pause digest emails</span>
-          </label>
-        </div>
-      </section>
-
-      <section className="card stack">
-        <h2>Following</h2>
-        {subs.isLoading ? (
-          <p className="muted">Loading…</p>
-        ) : subs.data && subs.data.length === 0 ? (
-          <p className="muted">
-            You're not following anyone yet. Find people in the Directory.
+    <div className="absolute inset-0 overflow-y-auto">
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-5">
+        <header>
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-faint">
+            Edge Mosaic
           </p>
-        ) : (
-          <ul className="list">
-            {subs.data?.map((s) => (
-              <li className="row" key={s.feeder_id}>
-                <div className="row-main">
-                  <span className="row-name">{s.display_name ?? "Unnamed"}</span>
-                  <Platforms platforms={s.platforms} />
-                </div>
-                <button
-                  className="btn btn-ghost"
-                  disabled={unsubscribe.isPending}
-                  onClick={() => unsubscribe.mutate(s.feeder_id)}
-                >
-                  Unfollow
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+          <h1 className="font-display text-2xl font-bold tracking-tight">Digest</h1>
+        </header>
 
-      <section className="card stack">
-        <h2>Preview</h2>
-        <p className="muted small">
-          A representative sample of what your next digest will look like.
-        </p>
+        <Card className="flex flex-col gap-3">
+          <CardTitle>Delivery settings</CardTitle>
+          <div className="flex flex-wrap items-center gap-5">
+            <label className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground">Frequency</span>
+              <select
+                className="h-9 rounded-md border border-input bg-card px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                value={user?.digest_frequency ?? "weekly"}
+                disabled={updateMe.isPending}
+                onChange={(e) =>
+                  updateMe.mutate({ digest_frequency: e.target.value as "weekly" | "monthly" })
+                }
+              >
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="size-4 accent-marigold"
+                checked={user?.digest_paused ?? false}
+                disabled={updateMe.isPending}
+                onChange={(e) => updateMe.mutate({ digest_paused: e.target.checked })}
+              />
+              <span>Pause digest emails</span>
+            </label>
+          </div>
+        </Card>
+
+        <Card className="flex flex-col gap-3">
+          <CardTitle>Subscriptions</CardTitle>
+          {subs.isLoading ? (
+            <p className="text-muted-foreground">Loading…</p>
+          ) : subs.data && subs.data.length === 0 ? (
+            <p className="text-muted-foreground">
+              You're not subscribed to anyone yet. Find people in the Directory.
+            </p>
+          ) : (
+            <ul className="flex flex-col divide-y divide-border">
+              {subs.data?.map((s) => (
+                <li className="flex items-center gap-3 py-3 first:pt-0 last:pb-0" key={s.feeder_id}>
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <span className="font-semibold">{s.display_name ?? "Unnamed"}</span>
+                    <Platforms platforms={s.platforms} />
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={unsubscribe.isPending}
+                    onClick={() => unsubscribe.mutate(s.feeder_id)}
+                  >
+                    Unsubscribe
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card className="flex flex-col gap-3">
+          <CardTitle>Preview</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            A representative sample of what your next digest will look like.
+          </p>
         {preview.isLoading ? (
           <p className="muted">Loading preview…</p>
         ) : preview.isError ? (
@@ -121,7 +132,8 @@ export function Digest() {
             )}
           </div>
         )}
-      </section>
+        </Card>
+      </div>
     </div>
   );
 }

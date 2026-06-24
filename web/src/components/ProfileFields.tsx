@@ -2,8 +2,14 @@
 // Profile page. They're presentational (value + onChange) except ImageUploader, which owns
 // the upload/delete mutation since images persist immediately (they're files, not JSON).
 import { useRef, useState } from "react";
+import { X } from "lucide-react";
 import { ApiError, type ImageKind, type Link, type User, type Visibility } from "../api";
 import { useDeleteImage, useUploadImage } from "../hooks/queries";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
 // Mirror the caps in api/app/config.py.
 export const BIO_MAX_CHARS = 280;
@@ -34,21 +40,44 @@ export const isValidPhone = (v: string) =>
   v.trim() === "" || (PHONE_RE.test(v.trim()) && (v.match(/\d/g)?.length ?? 0) >= 7);
 export const isValidTelegram = (v: string) => v.trim() === "" || TELEGRAM_RE.test(v.trim());
 
+// Small labelled-field wrapper for consistent spacing/typography.
+export function Field({
+  label,
+  hint,
+  error,
+  htmlFor,
+  children,
+}: {
+  label?: string;
+  hint?: string;
+  error?: string;
+  htmlFor?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      {label && <Label htmlFor={htmlFor}>{label}</Label>}
+      {children}
+      {error ? (
+        <span className="text-xs text-destructive">{error}</span>
+      ) : hint ? (
+        <span className="text-xs text-muted-foreground">{hint}</span>
+      ) : null}
+    </div>
+  );
+}
+
 export function BioField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
-    <label className="field">
-      <span>Bio</span>
-      <textarea
+    <Field label="Bio" hint={`${value.length}/${BIO_MAX_CHARS}`}>
+      <Textarea
         rows={3}
         maxLength={BIO_MAX_CHARS}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="A sentence or two about you."
       />
-      <span className="muted small">
-        {value.length}/{BIO_MAX_CHARS}
-      </span>
-    </label>
+    </Field>
   );
 }
 
@@ -72,45 +101,50 @@ export function ContactFields({
   const phoneBad = phone.trim() !== "" && !isValidPhone(phone);
   const telegramBad = telegram.trim() !== "" && !isValidTelegram(telegram);
   return (
-    <div className="stack">
-      <label className="field">
-        <span>Public contact email</span>
+    <div className="flex flex-col gap-4">
+      <Field label="Public contact email" error={emailBad ? "Enter a valid email address." : undefined}>
         {/* Pre-filled with your sign-in email; clear it with the ✕ if you'd rather not show it. */}
-        <span className="input-clearable">
-          <input
+        <div className="relative">
+          <Input
             type="email"
             value={email}
             onChange={(e) => onEmail(e.target.value)}
             placeholder="you@example.com"
             aria-invalid={emailBad}
+            className={cn(email !== "" && "pr-9", emailBad && "border-destructive")}
           />
           {email !== "" && (
             <button
               type="button"
-              className="input-clear"
               aria-label="Clear email"
               onClick={() => onEmail("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
             >
-              ✕
+              <X className="size-4" />
             </button>
           )}
-        </span>
-        {emailBad && <span className="error small">Enter a valid email address.</span>}
-      </label>
-      <label className="field">
-        <span>Phone</span>
-        <input
+        </div>
+      </Field>
+      <Field label="Phone" error={phoneBad ? "Enter a valid phone number." : undefined}>
+        <Input
           type="tel"
           value={phone}
           onChange={(e) => onPhone(e.target.value)}
           placeholder="optional"
           aria-invalid={phoneBad}
+          className={cn(phoneBad && "border-destructive")}
         />
-        {phoneBad && <span className="error small">Enter a valid phone number.</span>}
-      </label>
-      <label className="field">
-        <span>Telegram</span>
-        <input
+      </Field>
+      <Field
+        label="Telegram"
+        hint="Your @username on Telegram."
+        error={
+          telegramBad
+            ? "Handle is 5–32 characters: letters, numbers, or underscores."
+            : undefined
+        }
+      >
+        <Input
           value={telegram}
           onChange={(e) => onTelegram(e.target.value)}
           placeholder="@handle (optional)"
@@ -118,15 +152,9 @@ export function ContactFields({
           autoCorrect="off"
           spellCheck={false}
           aria-invalid={telegramBad}
+          className={cn(telegramBad && "border-destructive")}
         />
-        {telegramBad ? (
-          <span className="error small">
-            Handle is 5–32 characters: letters, numbers, or underscores.
-          </span>
-        ) : (
-          <span className="muted small">Your @username on Telegram.</span>
-        )}
-      </label>
+      </Field>
     </div>
   );
 }
@@ -142,32 +170,34 @@ export function CitiesEditor({
     onChange(cities.map((c, idx) => (idx === i ? v : c)));
   }
   return (
-    <div className="field">
-      <span>City / cities</span>
-      <div className="stack">
+    <Field label="City / cities">
+      <div className="flex flex-col gap-2">
         {cities.map((city, i) => (
-          <div className="settings-row" key={i}>
-            <input
-              value={city}
-              onChange={(e) => set(i, e.target.value)}
-              placeholder="City"
-            />
-            <button
+          <div className="flex items-center gap-2" key={i}>
+            <Input value={city} onChange={(e) => set(i, e.target.value)} placeholder="City" />
+            <Button
               type="button"
-              className="btn btn-ghost"
+              variant="ghost"
+              size="sm"
               onClick={() => onChange(cities.filter((_, idx) => idx !== i))}
             >
               Remove
-            </button>
+            </Button>
           </div>
         ))}
         {cities.length < MAX_CITIES && (
-          <button type="button" className="btn" onClick={() => onChange([...cities, ""])}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="self-start"
+            onClick={() => onChange([...cities, ""])}
+          >
             + Add city
-          </button>
+          </Button>
         )}
       </div>
-    </div>
+    </Field>
   );
 }
 
@@ -184,45 +214,51 @@ export function LinksEditor({
     onChange(links.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
   }
   return (
-    <div className="field">
-      {!hideLabel && <span>Links</span>}
-      {!hideLabel && <p className="muted small">Personal site, portfolio, socials — not feed sources.</p>}
-      <div className="stack">
+    <Field
+      label={hideLabel ? undefined : "Other links"}
+      hint={hideLabel ? undefined : "Personal site, portfolio, socials — not feed sources."}
+    >
+      <div className="flex flex-col gap-2">
         {links.map((link, i) => (
-          <div className="link-row" key={i}>
-            <input
-              className="link-label"
+          <div key={i} className="flex flex-col gap-1 rounded-lg border border-border p-2.5">
+            <Input
               value={link.label}
               onChange={(e) => set(i, { label: e.target.value })}
-              placeholder="Label"
+              placeholder="Label (e.g. Website)"
             />
-            <input
-              className="link-url"
-              value={link.url}
-              onChange={(e) => set(i, { url: e.target.value })}
-              onBlur={(e) => set(i, { url: normalizeLinkUrl(e.target.value) })}
-              placeholder="https://…"
-            />
-            <button
-              type="button"
-              className="btn btn-ghost"
-              onClick={() => onChange(links.filter((_, idx) => idx !== i))}
-            >
-              Remove
-            </button>
+            <div className="flex items-center gap-1.5">
+              <Input
+                className="flex-1"
+                value={link.url}
+                onChange={(e) => set(i, { url: e.target.value })}
+                onBlur={(e) => set(i, { url: normalizeLinkUrl(e.target.value) })}
+                placeholder="https://…"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="shrink-0"
+                onClick={() => onChange(links.filter((_, idx) => idx !== i))}
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
           </div>
         ))}
         {links.length < MAX_LINKS && (
-          <button
+          <Button
             type="button"
-            className="btn"
+            variant="outline"
+            size="sm"
+            className="self-start"
             onClick={() => onChange([...links, { label: "", url: "" }])}
           >
             + Add link
-          </button>
+          </Button>
         )}
       </div>
-    </div>
+    </Field>
   );
 }
 
@@ -233,33 +269,43 @@ export function VisibilityToggle({
   value: Visibility;
   onChange: (v: Visibility) => void;
 }) {
+  const options: { v: Visibility; title: string; desc: string }[] = [
+    {
+      v: "community",
+      title: "Entire edge community",
+      desc: "Anyone in the community can find you.",
+    },
+    {
+      v: "village",
+      title: "Just my village(s)",
+      desc: "Only people who share a village with you.",
+    },
+  ];
   return (
-    <fieldset className="field visibility-toggle">
-      <legend>Who can find you in the Directory?</legend>
-      <label className="radio-row">
-        <input
-          type="radio"
-          name="visibility"
-          checked={value === "community"}
-          onChange={() => onChange("community")}
-        />
-        <span>
-          <strong>Entire edge community</strong>
-          <span className="muted small"> — anyone in the community can find you</span>
-        </span>
-      </label>
-      <label className="radio-row">
-        <input
-          type="radio"
-          name="visibility"
-          checked={value === "village"}
-          onChange={() => onChange("village")}
-        />
-        <span>
-          <strong>Just my village(s)</strong>
-          <span className="muted small"> — only people who share a village with you</span>
-        </span>
-      </label>
+    <fieldset className="flex flex-col gap-2">
+      <legend className="mb-1 text-sm font-medium">Who can find you in the Directory?</legend>
+      {options.map((o) => {
+        const active = value === o.v;
+        return (
+          <label
+            key={o.v}
+            className={cn(
+              "flex cursor-pointer flex-col rounded-xl border p-3 transition-colors",
+              active ? "border-marigold bg-secondary" : "border-border hover:bg-secondary/60"
+            )}
+          >
+            <input
+              type="radio"
+              name="visibility"
+              className="sr-only"
+              checked={active}
+              onChange={() => onChange(o.v)}
+            />
+            <span className="block font-medium">{o.title}</span>
+            <span className="block text-sm text-muted-foreground">{o.desc}</span>
+          </label>
+        );
+      })}
     </fieldset>
   );
 }
@@ -293,18 +339,31 @@ export function ImageUploader({
     }
   }
 
+  const previewShape =
+    kind === "profile" ? "size-16 rounded-full" : "size-20 rounded-lg";
+
   return (
-    <div className={`image-uploader image-uploader--${kind}`}>
-      <span className="field-label">{label}</span>
-      <div className="image-uploader-row">
+    <div className="flex flex-col gap-1.5">
+      <Label>{label}</Label>
+      <div className="flex items-center gap-4">
         {url ? (
-          <img className={`image-preview image-preview--${kind}`} src={url} alt={label} />
+          <img
+            className={cn("border border-border object-cover", previewShape)}
+            src={url}
+            alt={label}
+          />
         ) : (
-          <div className={`image-placeholder image-preview--${kind}`} aria-hidden>
+          <div
+            className={cn(
+              "flex items-center justify-center border border-border bg-secondary text-xl text-muted-foreground",
+              previewShape
+            )}
+            aria-hidden
+          >
             {kind === "profile" ? "🙂" : "▦"}
           </div>
         )}
-        <div className="stack">
+        <div className="flex flex-col items-start gap-1">
           <input
             ref={inputRef}
             type="file"
@@ -312,27 +371,29 @@ export function ImageUploader({
             hidden
             onChange={onPick}
           />
-          <button
+          <Button
             type="button"
-            className="btn"
+            variant="outline"
+            size="sm"
             disabled={busy}
             onClick={() => inputRef.current?.click()}
           >
             {busy ? "Working…" : url ? "Replace" : "Upload"}
-          </button>
+          </Button>
           {url && (
-            <button
+            <Button
               type="button"
-              className="btn btn-ghost"
+              variant="ghost"
+              size="sm"
               disabled={busy}
               onClick={() => remove.mutate(kind)}
             >
               Remove
-            </button>
+            </Button>
           )}
         </div>
       </div>
-      {error && <p className="error small">{error}</p>}
+      {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );
 }

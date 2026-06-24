@@ -1,0 +1,110 @@
+@layer legacy;
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "./styles.css" layer(legacy);
+
+/*
+ * Edge Mosaic design tokens — neutral paper surfaces, near-black ink, a single
+ * marigold accent. shadcn primitives read the --color-* / --radius-* tokens below.
+ * No dark mode (yet), so values live directly in @theme rather than :root + inline.
+ */
+@theme {
+  --font-sans: "Public Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --radius-sm: 0.5rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+
+  /* shadcn semantic tokens */
+  --color-background: #f2f1ed;
+  --color-foreground: #1f1e1b;
+  --color-card: #ffffff;
+  --color-card-foreground: #1f1e1b;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #1f1e1b;
+  --color-primary: #1f1e1b; /* primary buttons are ink, per the design */
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #f7f6f3;
+  --color-secondary-foreground: #1f1e1b;
+  --color-muted: #f2f1ed;
+  --color-muted-foreground: #6e6c67;
+  --color-accent: #f3f1ec;
+  --color-accent-foreground: #1f1e1b;
+  --color-destructive: #b5483d;
+  --color-destructive-foreground: #ffffff;
+  --color-border: #e7e6e2;
+  --color-input: #e2e1dd;
+  --color-ring: #d99a2e;
+
+  /* brand extras */
+  --color-marigold: #d99a2e;
+  --color-marigold-foreground: #ffffff;
+  --color-ink: #1f1e1b;
+  --color-paper: #f2f1ed;
+  --color-faint: #8d8b86;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* --- Directory mosaic: drag-to-pan canvas + hover bloom (desktop nicety) --- */
+.mosaic-viewport {
+  touch-action: none;
+  cursor: grab;
+  overscroll-behavior: contain;
+}
+.mosaic-viewport[data-dragging="true"] {
+  cursor: grabbing;
+}
+.mosaic-tile {
+  transition: transform 0.35s cubic-bezier(0.2, 0.7, 0.2, 1), opacity 0.3s,
+    box-shadow 0.35s;
+  will-change: transform;
+}
+/* When the pointer rests on the wall (not dragging), the hovered tile blooms and the
+   rest recede — only on devices that actually hover. */
+@media (hover: hover) {
+  .mosaic-viewport[data-dragging="false"] .mosaic-canvas:hover .mosaic-tile {
+    opacity: 0.45;
+  }
+  .mosaic-viewport[data-dragging="false"] .mosaic-tile:hover {
+    opacity: 1 !important;
+    transform: scale(1.7);
+    z-index: 20;
+    box-shadow: 0 18px 42px rgba(24, 20, 14, 0.34);
+  }
+}
+.mosaic-hint {
+  animation: mosaic-hint-fade 0.4s ease;
+}
+@keyframes mosaic-hint-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mosaic-tile {
+    transition: none;
+  }
+}

@@ -18,6 +18,7 @@ const keys = {
   subscriptions: ["subscriptions"] as const,
   digestPreview: ["digest-preview"] as const,
   discover: (q: string) => ["discover", q] as const,
+  discoverAll: ["discover-all"] as const,
 };
 
 // --- queries --------------------------------------------------------------------------
@@ -47,6 +48,56 @@ export function useDiscover(q: string) {
       lastPage.length === DISCOVER_PAGE_SIZE
         ? allPages.length * DISCOVER_PAGE_SIZE
         : undefined,
+  });
+}
+
+// Load the WHOLE directory in one shot for the mosaic (and client-side list filtering).
+// The mosaic lays everyone out at once, so we page through /discover to exhaustion rather
+// than lazy-loading. Fine at the current scale (mid-hundreds); revisit if it grows.
+export function useAllDiscover() {
+  return useQuery({
+    queryKey: keys.discoverAll,
+    queryFn: async () => {
+      const all: Discover[] = [];
+      let offset = 0;
+      // Guard against an unbounded loop if the API ever misbehaves.
+      for (let guard = 0; guard < 200; guard++) {
+        const page = await api.discover("", offset);
+        all.push(...page);
+        if (page.length < DISCOVER_PAGE_SIZE) break;
+        offset += DISCOVER_PAGE_SIZE;
+      }
+      return all;
+    },
+  });
+}
+
+// Optimistic subscribe toggle against the flat ["discover-all"] cache the mosaic/list read.
+export function useToggleSubscribeAll() {
+  const qc = useQueryClient();
+  const key = keys.discoverAll;
+  return useMutation({
+    meta: { operation: "toggleSubscribe" },
+    mutationFn: async ({ userId, subscribe }: { userId: number; subscribe: boolean }) => {
+      if (subscribe) await api.subscribe(userId);
+      else await api.unsubscribeFeeder(userId);
+    },
+    onMutate: async ({ userId, subscribe }) => {
+      await qc.cancelQueries({ queryKey: key });
+      const prev = qc.getQueryData<Discover[]>(key);
+      qc.setQueryData<Discover[]>(key, (old) =>
+        old?.map((d) => (d.user_id === userId ? { ...d, is_subscribed: subscribe } : d))
+      );
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(key, ctx.prev);
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: key });
+      qc.invalidateQueries({ queryKey: keys.subscriptions });
+      qc.invalidateQueries({ queryKey: keys.digestPreview });
+    },
   });
 }
 
@@ -100,6 +151,7 @@ export function useToggleFollowProfile(username: string) {
       qc.invalidateQueries({ queryKey: ["profile", username] });
       qc.invalidateQueries({ queryKey: keys.subscriptions });
       qc.invalidateQueries({ queryKey: ["discover"] });
+      qc.invalidateQueries({ queryKey: keys.discoverAll });
       qc.invalidateQueries({ queryKey: keys.digestPreview });
     },
   });

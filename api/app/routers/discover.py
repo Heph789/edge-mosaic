@@ -6,7 +6,7 @@ from fastapi import APIRouter, Query
 from sqlalchemy import case, or_, select
 
 from ..deps import CurrentUser, DbDep
-from ..models import ProfileLink, Source, Subscription, User, UserVillage
+from ..models import ProfileLink, Source, Subscription, User, UserCity, UserVillage
 from ..schemas import DiscoverOut, LinkOut, PlatformPillOut
 from ..sources import platform_pills_for
 from ..storage import public_url
@@ -36,11 +36,7 @@ def discover(
     # Empty q browses the whole directory (capped); a term ILIKE-filters by name.
     conditions = [User.display_name.is_not(None)]
     if term:
-        # A search can surface yourself (so you can find/share your own profile); the
-        # default browse view still hides you to keep the focus on other people.
         conditions.append(User.display_name.ilike(f"%{_like_escape(term)}%", escape="\\"))
-    else:
-        conditions.append(User.id != user.id)  # don't surface yourself in the browse view
 
     # Visibility gate: a 'village' profile is only listed when it shares a village with the
     # viewer; 'community' profiles are always listed.
@@ -59,6 +55,14 @@ def discover(
     # Ranked in SQL so it applies *before* the cap, not just within the fetched page.
     has_source = select(Source.id).where(Source.user_id == User.id).exists()
     has_link = select(ProfileLink.id).where(ProfileLink.user_id == User.id).exists()
+    # Primary city (lowest position) shown as the list-view location line.
+    primary_city = (
+        select(UserCity.name)
+        .where(UserCity.user_id == User.id)
+        .order_by(UserCity.position)
+        .limit(1)
+        .scalar_subquery()
+    )
     rank = case(
         (has_source, 0),
         (has_link, 1),
@@ -75,6 +79,7 @@ def discover(
                 User.bio,
                 User.profile_image_path,
                 User.tile_image_path,
+                primary_city.label("city"),
             )
             .where(*conditions)
             # Stable total order (rank, name, id) so offset paging never skips/repeats rows.
@@ -110,6 +115,7 @@ def discover(
             username=username,
             display_name=name,
             bio=bio,
+            city=city,
             platforms=[
                 PlatformPillOut(label=label, url=url)
                 for label, url in pills.get(fid, [])
@@ -119,5 +125,5 @@ def discover(
             profile_image_url=public_url(profile_path),
             tile_image_url=public_url(tile_path),
         )
-        for fid, username, name, bio, profile_path, tile_path in rows
+        for fid, username, name, bio, profile_path, tile_path, city in rows
     ]

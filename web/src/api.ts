@@ -99,6 +99,7 @@ export type Discover = {
   username: string;
   display_name: string | null;
   bio: string | null;
+  city: string | null; // primary city, shown as the location line in the list view
   platforms: PlatformPill[]; // feeder-source pills, each links out
   links: Link[]; // non-feeder profile links, shown as pressable pills too
   is_subscribed: boolean;
