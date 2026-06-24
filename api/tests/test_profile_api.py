@@ -98,6 +98,52 @@ def test_image_upload_replace_and_delete(client, make_user, auth):
     assert r.json()["profile_image_url"] is None
 
 
+def test_image_upload_s3_backend(client, make_user, auth, monkeypatch):
+    """When MEDIA_S3_BUCKET is set, uploads put objects into a private bucket and URLs are
+    presigned (the prod path). A fake boto3 client stands in for R2/S3."""
+    puts: list[dict] = []
+    deletes: list[dict] = []
+    signed: list[dict] = []
+
+    class FakeS3:
+        def put_object(self, **kw):
+            puts.append(kw)
+
+        def delete_object(self, **kw):
+            deletes.append(kw)
+
+        def generate_presigned_url(self, op, Params, ExpiresIn):
+            signed.append({"op": op, "Params": Params, "ExpiresIn": ExpiresIn})
+            return f"https://r2.example.com/{Params['Key']}?X-Amz-Signature=deadbeef"
+
+    monkeypatch.setattr(config, "MEDIA_S3_BUCKET", "test-bucket")
+    monkeypatch.setattr(config, "MEDIA_URL_TTL_SECONDS", 1800)
+    monkeypatch.setattr(storage, "_s3_client", FakeS3())  # skip real boto3 client build
+
+    user = make_user("s3@example.com", display_name="S")
+    h = auth(user)
+
+    r = client.post("/me/images/profile", files=_png_file(), headers=h)
+    assert r.status_code == 200, r.text
+    url = r.json()["profile_image_url"]
+    # URL is a presigned GET (private bucket), not a static public URL.
+    assert "X-Amz-Signature=" in url
+    assert len(puts) == 1
+    assert puts[0]["Bucket"] == "test-bucket"
+    assert puts[0]["ContentType"] == "image/png"
+    assert puts[0]["Body"] == PNG_1PX
+    # The signed key matches what was stored, and the configured TTL is honored.
+    assert signed[-1]["op"] == "get_object"
+    assert signed[-1]["Params"]["Bucket"] == "test-bucket"
+    assert signed[-1]["ExpiresIn"] == 1800
+
+    # Replacing deletes the old object.
+    r = client.post("/me/images/profile", files=_png_file("b.png"), headers=h)
+    assert r.status_code == 200
+    assert len(deletes) == 1
+    assert deletes[0]["Bucket"] == "test-bucket"
+
+
 def test_image_upload_rejects_bad_type_and_kind(client, make_user, auth):
     user = make_user("e@example.com", display_name="E")
     h = auth(user)

@@ -124,12 +124,32 @@ DEFAULT_VILLAGE_NAME = "EE '26"
 DEFAULT_VILLAGE_SLUG = "ee-26"
 
 # --- Uploaded media (profile + tile images) -------------------------------------------
-# Local-filesystem store for dev, served by the API at MEDIA_URL_PREFIX. The storage seam
-# in app/storage.py is the one-file swap point for object storage in prod (cf. app/email.py).
+# Two backends behind the app/storage.py seam (cf. app/email.py):
+#   * dev  -> local filesystem under MEDIA_DIR, served by the API's StaticFiles mount.
+#   * prod -> S3-compatible object storage (Cloudflare R2 / AWS S3), selected automatically
+#             when MEDIA_S3_BUCKET is set. Railway's container FS is ephemeral *and*
+#             root-owned-volume hostile (uid 10001 can't write a mounted volume), so the
+#             local backend can't run there — object storage is the prod path.
 MEDIA_DIR = DATA_DIR / "media"
 MEDIA_DIR.mkdir(exist_ok=True)
 MEDIA_URL_PREFIX = "/media"
 MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB
+
+# S3/R2 backend. When MEDIA_S3_BUCKET is non-empty, storage.py uses object storage and
+# ignores MEDIA_DIR. The bucket stays PRIVATE: image URLs are short-lived presigned GET URLs
+# generated at serialization time (boto3, local HMAC — no network call), so nothing is
+# publicly readable and links expire after MEDIA_URL_TTL_SECONDS. The URL is only ever
+# returned to viewers who already pass the directory's visibility checks. For Cloudflare R2,
+# MEDIA_S3_ENDPOINT_URL is https://<account-id>.r2.cloudflarestorage.com and the region is
+# "auto"; for AWS S3 leave the endpoint empty and set the real region.
+MEDIA_S3_BUCKET = os.environ.get("MEDIA_S3_BUCKET", "")
+MEDIA_S3_ENDPOINT_URL = os.environ.get("MEDIA_S3_ENDPOINT_URL", "") or None
+MEDIA_S3_REGION = os.environ.get("MEDIA_S3_REGION", "auto")
+MEDIA_S3_ACCESS_KEY_ID = os.environ.get("MEDIA_S3_ACCESS_KEY_ID", "")
+MEDIA_S3_SECRET_ACCESS_KEY = os.environ.get("MEDIA_S3_SECRET_ACCESS_KEY", "")
+# Lifetime of a presigned image URL. Short enough that a leaked link soon dies; long enough
+# to outlast a page session. SigV4 caps this at 7 days (604800s).
+MEDIA_URL_TTL_SECONDS = int(os.environ.get("MEDIA_URL_TTL_SECONDS", "3600"))
 # content-type -> file extension for the formats we accept.
 ALLOWED_IMAGE_TYPES = {
     "image/png": "png",
