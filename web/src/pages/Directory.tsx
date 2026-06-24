@@ -125,6 +125,8 @@ function Mosaic({
   const offset = useRef({ x: 0, y: 0 });
   const start = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
   const moved = useRef(false);
+  const rafRef = useRef<number | null>(null);
+  const recentMoves = useRef<{ x: number; y: number; t: number }[]>([]);
   const [dragging, setDragging] = useState(false);
   const [centered, setCentered] = useState(false);
 
@@ -173,14 +175,32 @@ function Mosaic({
     setCentered(true);
   }, [centered, placed]);
 
+  function cancelMomentum() {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+  }
+
+  function startMomentum(vx: number, vy: number) {
+    cancelMomentum();
+    const FRICTION = 0.91;
+    function step() {
+      vx *= FRICTION;
+      vy *= FRICTION;
+      if (Math.abs(vx) < 0.3 && Math.abs(vy) < 0.3) { rafRef.current = null; return; }
+      offset.current = clamp(offset.current.x + vx, offset.current.y + vy);
+      applyTransform();
+      rafRef.current = requestAnimationFrame(step);
+    }
+    rafRef.current = requestAnimationFrame(step);
+  }
+
   function onPointerDown(e: React.PointerEvent) {
     if (e.button != null && e.button !== 0) return;
-    start.current = {
-      x: e.clientX,
-      y: e.clientY,
-      ox: offset.current.x,
-      oy: offset.current.y,
-    };
+    cancelMomentum();
+    recentMoves.current = [];
+    start.current = { x: e.clientX, y: e.clientY, ox: offset.current.x, oy: offset.current.y };
     moved.current = false;
     setDragging(true);
     window.addEventListener("pointermove", onPointerMove);
@@ -189,6 +209,9 @@ function Mosaic({
   function onPointerMove(e: PointerEvent) {
     const s = start.current;
     if (!s) return;
+    const now = performance.now();
+    recentMoves.current.push({ x: e.clientX, y: e.clientY, t: now });
+    recentMoves.current = recentMoves.current.filter((m) => now - m.t < 80);
     const dx = e.clientX - s.x;
     const dy = e.clientY - s.y;
     if (Math.abs(dx) > 4 || Math.abs(dy) > 4) moved.current = true;
@@ -200,11 +223,39 @@ function Mosaic({
     window.removeEventListener("pointerup", onPointerUp);
     start.current = null;
     setDragging(false);
+    const moves = recentMoves.current;
+    if (moves.length >= 2) {
+      const first = moves[0];
+      const last = moves[moves.length - 1];
+      const dt = last.t - first.t;
+      if (dt > 0 && dt < 80) {
+        const vx = ((last.x - first.x) / dt) * 16;
+        const vy = ((last.y - first.y) / dt) * 16;
+        if (Math.abs(vx) > 1 || Math.abs(vy) > 1) startMomentum(vx, vy);
+      }
+    }
+    recentMoves.current = [];
   }
+
+  // Trackpad scroll-to-pan (non-passive so preventDefault works).
+  useEffect(() => {
+    const vp = viewportRef.current;
+    if (!vp) return;
+    function onWheel(e: WheelEvent) {
+      e.preventDefault();
+      cancelMomentum();
+      offset.current = clamp(offset.current.x - e.deltaX, offset.current.y - e.deltaY);
+      applyTransform();
+    }
+    vp.addEventListener("wheel", onWheel, { passive: false });
+    return () => vp.removeEventListener("wheel", onWheel);
+  }, [placed]);
+
   useEffect(
     () => () => {
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
+      cancelMomentum();
     },
     []
   );
@@ -371,13 +422,10 @@ function ListRow({
             <AvatarFallback>{initialsOf(row.display_name, row.username)}</AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
-            <div className="flex items-baseline gap-2">
-              <span className="truncate font-semibold leading-tight">{name}</span>
+            <div>
+              <span className="font-semibold leading-tight">{name}</span>
               {row.city && (
-                <span className="flex shrink-0 items-center gap-1 font-mono text-[11px] text-faint">
-                  <span className="size-1.5 rounded-full bg-border" />
-                  {row.city}
-                </span>
+                <p className="font-mono text-[11px] text-faint">{row.city}</p>
               )}
             </div>
             {row.bio && (
