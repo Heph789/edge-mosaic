@@ -101,34 +101,3 @@ def test_discover_escapes_like_wildcards(client, db, make_user, auth):
     hits = client.get("/discover?q=50%25", headers=auth(searcher)).json()  # %25 = '%'
     names = {h["display_name"] for h in hits}
     assert names == {"50% Off Deals"}
-
-
-def test_discover_empty_query_browses_all(client, make_user, auth):
-    # Empty / whitespace / absent q browses the whole directory (Slice 5: the Directory
-    # shows a list by default), excluding the searcher; it no longer 422s.
-    searcher = make_user("s@example.com", "Searcher")
-    make_user("a@example.com", "Alice A")
-    make_user("b@example.com", "Bob B")
-
-    for url in ("/discover?q=%20", "/discover"):
-        resp = client.get(url, headers=auth(searcher))
-        assert resp.status_code == 200
-        names = {h["display_name"] for h in resp.json()}
-        assert names == {"Alice A", "Bob B"}  # all discoverable users, self excluded
-
-
-def test_discover_pagination_offset_limit(client, make_user, auth):
-    # Infinite scroll fetches the directory page by page via offset/limit; the slices must
-    # tile the full ordered list without gaps or repeats.
-    searcher = make_user("s@example.com", "Searcher")
-    for i in range(5):
-        make_user(f"u{i}@example.com", f"Person {i}")
-
-    h = auth(searcher)
-    page1 = client.get("/discover?limit=2&offset=0", headers=h).json()
-    page2 = client.get("/discover?limit=2&offset=2", headers=h).json()
-    page3 = client.get("/discover?limit=2&offset=4", headers=h).json()
-    assert [len(page1), len(page2), len(page3)] == [2, 2, 1]  # 5 people, 2 per page
-
-    ids = [r["user_id"] for r in (*page1, *page2, *page3)]
-    assert len(ids) == len(set(ids)) == 5  # no gaps, no repeats

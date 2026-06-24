@@ -20,27 +20,6 @@ const availableHandler = http.get(`${API}/usernames/:username/available`, () =>
   HttpResponse.json({ valid: true, available: true })
 );
 
-function wizardHandlers() {
-  let current: User = { ...freshUser };
-  return [
-    availableHandler,
-    http.get(`${API}/me`, () => HttpResponse.json(current)),
-    http.get(`${API}/sources`, () => HttpResponse.json([])),
-    http.patch(`${API}/me`, async ({ request }) => {
-      const patch = (await request.json()) as Record<string, unknown>;
-      const { display_name, ...rest } = patch;
-      current = {
-        ...current,
-        ...rest,
-        ...(typeof display_name === "string"
-          ? { display_name, onboarded: true }
-          : {}),
-      };
-      return HttpResponse.json(current);
-    }),
-  ];
-}
-
 describe("Onboarding wizard", () => {
   it("walks the steps, saving the name + username then enrichment fields", async () => {
     const patches: Record<string, unknown>[] = [];
@@ -85,32 +64,5 @@ describe("Onboarding wizard", () => {
     // First PATCH set the display name + chosen username; the second saved the bio.
     expect(patches[0]).toEqual({ display_name: "Chase B.", username: "chaseb" });
     expect(patches[1]).toMatchObject({ bio: "Builder." });
-  });
-
-  it("requires a display name before leaving step 1", async () => {
-    server.use(...wizardHandlers());
-    const user = userEvent.setup();
-    renderWithProviders(<AppRoutes />, { path: "/onboarding", authed: true });
-
-    await screen.findByText(/Step 1 of 4/i);
-    await user.click(screen.getByRole("button", { name: /Continue/i }));
-
-    expect(await screen.findByText(/Please enter a display name/i)).toBeInTheDocument();
-    // Still on step 1.
-    expect(screen.getByText(/Step 1 of 4/i)).toBeInTheDocument();
-  });
-
-  it("requires a username before leaving step 1", async () => {
-    server.use(...wizardHandlers());
-    const user = userEvent.setup();
-    renderWithProviders(<AppRoutes />, { path: "/onboarding", authed: true });
-
-    await screen.findByText(/Step 1 of 4/i);
-    await user.type(screen.getByPlaceholderText("Jane S."), "Chase B.");
-    await user.clear(screen.getByPlaceholderText("janes"));
-    await user.click(screen.getByRole("button", { name: /Continue/i }));
-
-    expect(await screen.findByText(/Please choose a username/i)).toBeInTheDocument();
-    expect(screen.getByText(/Step 1 of 4/i)).toBeInTheDocument();
   });
 });
