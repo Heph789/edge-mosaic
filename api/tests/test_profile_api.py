@@ -15,11 +15,17 @@ from app.villages import assign_default_village
 
 @pytest.fixture(autouse=True)
 def isolated_media(tmp_path, monkeypatch):
-    """Redirect image storage to a throwaway dir so tests never touch api/data/media."""
+    """Redirect image storage to a throwaway dir so tests never touch api/data/media.
+
+    Also force the local-filesystem backend by clearing MEDIA_S3_BUCKET, so a developer's
+    local .env (which may point at a real R2 bucket) can't leak into the test run. The one
+    S3-backend test opts back in by setting MEDIA_S3_BUCKET itself.
+    """
     media = tmp_path / "media"
     media.mkdir()
     monkeypatch.setattr(config, "MEDIA_DIR", media)
     monkeypatch.setattr(storage.config, "MEDIA_DIR", media)
+    monkeypatch.setattr(config, "MEDIA_S3_BUCKET", "")
     yield
 
 # A 1x1 transparent PNG (smallest valid file the upload path will accept).

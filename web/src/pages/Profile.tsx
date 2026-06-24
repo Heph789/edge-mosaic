@@ -7,6 +7,7 @@ import {
   BioField,
   CitiesEditor,
   ContactFields,
+  ImageUploader,
   isValidEmail,
   isValidPhone,
   isValidTelegram,
@@ -46,6 +47,7 @@ export function Profile() {
       )}
 
       <DisplayNameSection />
+      <PhotoSection />
       <AboutSection />
       <SourcesSection />
     </div>
@@ -95,6 +97,21 @@ function DisplayNameSection() {
       </form>
       {status && <p className="success small">{status}</p>}
       {error && <p className="error small">{error}</p>}
+    </section>
+  );
+}
+
+function PhotoSection() {
+  const { user, applyUser } = useAuth();
+  return (
+    <section className="card stack">
+      <h2>Photo</h2>
+      <ImageUploader
+        kind="profile"
+        label="Profile photo"
+        url={user?.profile_image_url ?? null}
+        onUser={applyUser}
+      />
     </section>
   );
 }
