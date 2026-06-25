@@ -3,6 +3,7 @@
     python -m app.cli import-allowlist [csv]  # seed allowed_emails + pre-seed named users
     python -m app.cli seed-sources [md]       # pre-seed feeders + sources from source-list.md
     python -m app.cli seed-notable [json]     # pre-seed notable speakers + their profile links
+    python -m app.cli seed-speakers [json]    # additively pre-seed event speakers (+ flag notables)
     python -m app.cli scrape                  # fetch all real sources, dedup-insert items
 
 The digest send runs as a job entrypoint, not here: `python -m app.jobs.digest`.
@@ -24,6 +25,7 @@ from .db import SessionLocal
 from .ingest import scrape
 from .seed import SOURCE_LIST_PATH, seed_sources
 from .seed_notable import NOTABLE_PATH, seed_notable_speakers
+from .seed_speakers import SPEAKER_PATH, seed_speakers
 
 
 def ensure_schema() -> None:
@@ -91,6 +93,30 @@ def cmd_seed_notable(json_arg: str | None) -> int:
     return 0
 
 
+def cmd_seed_speakers(json_arg: str | None) -> int:
+    ensure_schema()
+    json_path = Path(json_arg) if json_arg else SPEAKER_PATH
+    if not json_path.exists():
+        print(f"speaker list not found: {json_path}", file=sys.stderr)
+        return 1
+
+    with SessionLocal() as session:
+        stats = seed_speakers(session, json_path)
+
+    print(f"Seeded speakers from {json_path.name}:")
+    print(
+        f"  {stats.created} created ({stats.created_with_email} tied to allowlist email), "
+        f"{stats.filled} filled, {stats.flagged_only} flag-only, "
+        f"{stats.skipped_verified} skipped (verified)"
+    )
+    print(f"  {stats.notables_flagged} notables flagged speaker=true (backfill)")
+    print(f"  {stats.sources_added} sources added, {stats.links_added} links added "
+          f"({stats.links_skipped} skipped, {stats.email_not_allowlisted} emails not in allowlist)")
+    for w in stats.warnings:
+        print(f"  ! {w}", file=sys.stderr)
+    return 0
+
+
 def cmd_import_allowlist(csv_arg: str | None) -> int:
     ensure_schema()
     csv_path = Path(csv_arg) if csv_arg else config.ALLOWLIST_CSV_DEFAULT
@@ -120,6 +146,8 @@ def main(argv: list[str] | None = None) -> int:
     seed_p.add_argument("md", nargs="?", default=None, help="path to source list (defaults to docs/source-list.md)")
     notable_p = sub.add_parser("seed-notable", help="pre-seed notable speakers + their profile links")
     notable_p.add_argument("json", nargs="?", default=None, help="path to notable list (defaults to data/edge-esmeralda-2026/notable-speakers.json)")
+    speaker_p = sub.add_parser("seed-speakers", help="additively pre-seed event speakers (+ flag notables)")
+    speaker_p.add_argument("json", nargs="?", default=None, help="path to speaker list (defaults to data/edge-esmeralda-2026/june-25-bulk-speaker-add/speakers-loft.json)")
     sub.add_parser("scrape", help="fetch all real sources and store deduped items")
 
     args = parser.parse_args(argv)
@@ -129,6 +157,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_seed_sources(args.md)
     elif args.command == "seed-notable":
         return cmd_seed_notable(args.json)
+    elif args.command == "seed-speakers":
+        return cmd_seed_speakers(args.json)
     elif args.command == "scrape":
         cmd_scrape()
     return 0

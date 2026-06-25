@@ -98,6 +98,9 @@ class User(Base):
     # Internal flag for curated public figures (pre-seeded notable speakers). Display/curation
     # only — carries no auth meaning.
     is_notable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Pre-seeded event speaker (Edge Esmeralda directory seed). Display/curation only, no auth
+    # meaning. Notables are a subset — every notable is also a speaker.
+    speaker: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     # --- Profile (onboarding artifacts) -----------------------------------------------
     bio: Mapped[str | None] = mapped_column(String, nullable=True)

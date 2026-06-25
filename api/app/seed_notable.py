@@ -202,7 +202,7 @@ def seed_notable_speakers(session: Session, path: Path | None = None) -> Notable
         user = _find_user(session, spec)
         if user is None:
             # Pre-seeded ghost: discoverable by display_name, never logged in (verified_at NULL).
-            user = User(email=spec.email, display_name=spec.name, is_notable=True)
+            user = User(email=spec.email, display_name=spec.name, is_notable=True, speaker=True)
             session.add(user)
             session.flush()  # assign user.id for the username + links below
             user.username = f"user-{user.id}"  # canonical placeholder handle
@@ -216,6 +216,7 @@ def seed_notable_speakers(session: Session, path: Path | None = None) -> Notable
                 stats.existing += 1
             # Roster is source of truth: refresh the display name (fixes abbreviated rosters).
             user.display_name = spec.name
+        user.speaker = True  # every notable is also a speaker (invariant)
 
         kept_ids.add(user.id)
         source_specs, display_specs = _partition_links(spec)
