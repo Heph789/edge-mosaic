@@ -213,6 +213,9 @@ function AboutSection() {
         />
         <div className="flex flex-col gap-1.5">
           <span className="text-sm font-medium">Sources</span>
+          <p className="text-xs text-muted-foreground">
+            Content from your sources shows up in your subscribers' digests.
+          </p>
           <SourcesEditor hideHint />
         </div>
         <LinksEditor links={links} onChange={setLinks} />
