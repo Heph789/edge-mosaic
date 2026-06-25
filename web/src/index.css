@@ -63,33 +63,36 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
   }
+  /* Every clickable button gets the pointer cursor. The mosaic tile is exempt — it lives
+     on the drag-to-pan canvas and keeps the grab cursor. */
+  button:not(:disabled):not(.mosaic-tile) {
+    cursor: pointer;
+  }
 }
 
-/* --- Directory mosaic: drag-to-pan canvas + hover bloom (desktop nicety) --- */
+/* --- Directory mosaic: drag-to-pan canvas + hover lift (desktop nicety) --- */
 .mosaic-viewport {
   touch-action: none;
-  cursor: grab;
   overscroll-behavior: contain;
 }
-.mosaic-viewport[data-dragging="true"] {
+/* Tiles read as clickable (pointer) and animate a small lift on hover. The grabbing cursor
+   only appears while the user is actually click-dragging to pan — data-dragging flips true
+   on pointerdown. */
+.mosaic-tile {
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.mosaic-viewport[data-dragging="true"],
+.mosaic-viewport[data-dragging="true"] .mosaic-tile {
   cursor: grabbing;
 }
-.mosaic-tile {
-  transition: transform 0.35s cubic-bezier(0.2, 0.7, 0.2, 1), opacity 0.3s,
-    box-shadow 0.35s;
-  will-change: transform;
-}
-/* When the pointer rests on the wall (not dragging), the hovered tile blooms and the
-   rest recede — only on devices that actually hover. */
+/* On hover (devices that actually hover), the tile lifts slightly with a drop shadow to
+   read as clickable — no scaling, no dimming of its neighbours. */
 @media (hover: hover) {
-  .mosaic-viewport[data-dragging="false"] .mosaic-canvas:hover .mosaic-tile {
-    opacity: 0.45;
-  }
   .mosaic-viewport[data-dragging="false"] .mosaic-tile:hover {
-    opacity: 1 !important;
-    transform: scale(1.7);
+    transform: translateY(-3px);
     z-index: 20;
-    box-shadow: 0 18px 42px rgba(24, 20, 14, 0.34);
+    box-shadow: 0 10px 22px rgba(24, 20, 14, 0.26);
   }
 }
 .mosaic-hint {

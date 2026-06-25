@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Crosshair, Plus, Search } from "lucide-react";
+import { Crosshair, Search } from "lucide-react";
 import type { Discover, Link, PlatformPill } from "../api";
 import { useAllDiscover, useToggleSubscribeAll } from "../hooks/queries";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -10,7 +10,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { generatedTileBackground, initialsOf, spiral } from "@/lib/mosaic";
 
-const TILE = 92;
+const TILE = 106;
 
 type View = "mosaic" | "list";
 
@@ -50,15 +50,6 @@ export function Directory() {
                 <TabsTrigger value="list" className="text-xs">List</TabsTrigger>
               </TabsList>
             </Tabs>
-            <Button
-              variant="outline"
-              size="sm"
-              className="shrink-0 gap-1.5"
-              onClick={() => navigate("/profile#tile")}
-            >
-              <Plus className="size-3.5" />
-              Add tile
-            </Button>
           </div>
         </div>
         <p className="mt-1 font-mono text-[11px] text-faint">
@@ -111,7 +102,7 @@ function CenterNote({ children }: { children: React.ReactNode }) {
 
 // ----------------------------------------------------------------------------------------
 // Mosaic: a drag-to-pan canvas. Real-photo tiles cluster at the centre (assigned the first
-// spiral cells); generated tiles ring outward.
+// spiral cells); initials-only tiles ring outward.
 // ----------------------------------------------------------------------------------------
 function Mosaic({
   members,
@@ -133,7 +124,7 @@ function Mosaic({
   // Real-photo members first → they take the innermost spiral cells.
   const placed = useMemo(() => {
     const sorted = [...members].sort(
-      (a, b) => Number(!!b.tile_image_url) - Number(!!a.tile_image_url)
+      (a, b) => Number(!!b.profile_image_url) - Number(!!a.profile_image_url)
     );
     const cells = spiral(sorted.length);
     let extent = 0;
@@ -321,26 +312,30 @@ function MosaicTile({
     <button
       type="button"
       onClick={onOpen}
-      className="mosaic-tile absolute overflow-hidden rounded-md border border-border bg-secondary text-left shadow-sm"
+      className="mosaic-tile absolute overflow-hidden rounded-md border border-border text-left shadow-sm"
       style={{ left, top, width: TILE, height: TILE }}
     >
-      {row.tile_image_url ? (
+      {/* The generated gradient + initials sit underneath as the base layer. A photo
+          overlays them; if it fails to load, onError hides the <img> and they show through. */}
+      <span
+        className="flex h-full w-full items-center justify-center font-mono text-xl font-semibold text-ink/45"
+        style={{ background: generatedTileBackground(row.username) }}
+      >
+        {initialsOf(row.display_name, row.username)}
+      </span>
+      {row.profile_image_url && (
         <img
-          src={row.tile_image_url}
+          src={row.profile_image_url}
           alt=""
           draggable={false}
-          className="h-full w-full object-cover"
+          className="absolute inset-0 h-full w-full object-cover"
+          onError={(e) => {
+            e.currentTarget.style.display = "none";
+          }}
         />
-      ) : (
-        <span
-          className="flex h-full w-full items-center justify-center font-mono text-lg font-semibold text-ink/45"
-          style={{ background: generatedTileBackground(row.username) }}
-        >
-          {initialsOf(row.display_name, row.username)}
-        </span>
       )}
       <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/85 to-transparent px-2 pb-1.5 pt-5">
-        <span className="block truncate text-[11px] font-semibold leading-tight text-white">
+        <span className="block truncate text-[13px] font-semibold leading-tight text-white">
           {name}
         </span>
       </span>

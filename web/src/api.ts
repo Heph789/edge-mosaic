@@ -10,7 +10,9 @@ export const TOKEN_KEY = "em_token";
 // --- shared types (mirror app/schemas.py) ---------------------------------------------
 export type DigestFrequency = "weekly" | "monthly";
 export type Visibility = "community" | "village";
-export type ImageKind = "profile" | "tile";
+// One image per user (the profile photo). The {kind} route param is a seam for future
+// image kinds; "profile" is the only kind today.
+export type ImageKind = "profile";
 
 export type Link = { label: string; url: string };
 export type SourceStatus = "active" | "unverified";
@@ -38,7 +40,6 @@ export type User = {
   contact_phone: string | null;
   contact_telegram: string | null;
   profile_image_url: string | null;
-  tile_image_url: string | null;
   visibility: Visibility;
   cities: string[];
   links: Link[];
@@ -53,7 +54,6 @@ export type PublicProfile = {
   contact_email: string | null;
   contact_telegram: string | null;
   profile_image_url: string | null;
-  tile_image_url: string | null;
   cities: string[];
   links: Link[];
   platforms: string[];
@@ -103,8 +103,7 @@ export type Discover = {
   platforms: PlatformPill[]; // feeder-source pills, each links out
   links: Link[]; // non-feeder profile links, shown as pressable pills too
   is_subscribed: boolean;
-  profile_image_url: string | null;
-  tile_image_url: string | null;
+  profile_image_url: string | null; // shown circular as avatar, square as the mosaic tile
 };
 
 export type DigestItem = {

@@ -78,7 +78,6 @@ def discover(
                 User.display_name,
                 User.bio,
                 User.profile_image_path,
-                User.tile_image_path,
                 primary_city.label("city"),
             )
             .where(*conditions)
@@ -123,7 +122,6 @@ def discover(
             links=links.get(fid, []),
             is_subscribed=fid in subscribed,
             profile_image_url=public_url(profile_path),
-            tile_image_url=public_url(tile_path),
         )
-        for fid, username, name, bio, profile_path, tile_path, city in rows
+        for fid, username, name, bio, profile_path, city in rows
     ]

@@ -45,13 +45,6 @@ export function ProfileSheet() {
           </p>
         ) : (
           <div className="px-6 pb-8">
-            {p.tile_image_url && (
-              <img
-                src={p.tile_image_url}
-                alt=""
-                className="mb-4 h-36 w-full rounded-xl border border-border object-cover"
-              />
-            )}
             <div className="flex items-start gap-4">
               <Avatar className="size-16 border border-border">
                 {p.profile_image_url && <AvatarImage src={p.profile_image_url} alt="" />}

@@ -197,23 +197,15 @@ export function Onboarding() {
 
           {STEPS[step] === "About you" && (
             <>
-              <div className="flex flex-wrap gap-6">
-                <ImageUploader
-                  kind="tile"
-                  label="Mosaic tile"
-                  url={user?.tile_image_url ?? null}
-                  onUser={applyUser}
-                />
-                <ImageUploader
-                  kind="profile"
-                  label="Profile photo"
-                  url={user?.profile_image_url ?? null}
-                  onUser={applyUser}
-                />
-              </div>
+              <ImageUploader
+                kind="profile"
+                label="Profile photo"
+                url={user?.profile_image_url ?? null}
+                onUser={applyUser}
+              />
               <p className="-mt-2 text-xs text-muted-foreground">
-                Your tile is your square in the Directory mosaic. Skip it and we'll generate
-                one from your name.
+                This is your square in the Directory mosaic too. Skip it and your initials
+                stand in.
               </p>
               <BioField value={bio} onChange={setBio} />
               <CitiesEditor cities={cities} onChange={setCities} />

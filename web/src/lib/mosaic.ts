@@ -1,6 +1,6 @@
-// Pure helpers for the Directory mosaic: a deterministic generated tile for members who
-// haven't uploaded one, and a square-spiral layout so the densest (real-photo) tiles sit
-// in the middle and the wall radiates outward.
+// Pure helpers for the Directory mosaic: initials for members without a photo, and a
+// square-spiral layout so the densest (real-photo) tiles sit in the middle and the wall
+// radiates outward.
 
 export function initialsOf(name: string | null, fallback: string): string {
   const src = (name ?? "").trim();
@@ -39,7 +39,7 @@ export function generatedTileBackground(seed: string): string {
 
 export type SpiralCell = { x: number; y: number };
 
-const CELL = 104; // must match Directory.tsx
+const CELL = 120; // must match Directory.tsx (TILE + gap)
 
 // Brick-row grid: tiles in neat rows with alternating half-cell horizontal offset.
 // Returns pixel offsets from the grid center, sorted nearest-first so real-photo

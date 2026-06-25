@@ -26,13 +26,6 @@ export function ProfileView({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      {p.tile_image_url && (
-        <img
-          src={p.tile_image_url}
-          alt=""
-          className="h-40 w-full rounded-xl border border-border object-cover"
-        />
-      )}
       <div className="flex items-start gap-4">
         <Avatar60 url={p.profile_image_url} name={p.display_name} handle={p.username} />
         <div className="min-w-0 flex-1">
