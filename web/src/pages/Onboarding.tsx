@@ -79,8 +79,7 @@ export function Onboarding() {
   const aboutValid =
     isValidEmail(contactEmail) && isValidPhone(contactPhone) && isValidTelegram(contactTelegram);
   const sourcesBlocked =
-    STEPS[step] === "Sources & Links" &&
-    (sourcesVerifying || (sources.data?.length ?? 0) === 0);
+    STEPS[step] === "Sources & Links" && sourcesVerifying;
   const continueDisabled =
     updateMe.isPending ||
     sourcesBlocked ||

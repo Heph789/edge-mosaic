@@ -98,7 +98,7 @@ export function SourcesEditor({
 
       <div className="flex flex-col gap-2 sm:flex-row">
         <Input
-          placeholder="blog RSS, @handle.bsky.social, or x.com/username"
+          placeholder="Add content link..."
           value={url}
           onChange={(e) => {
             setUrl(e.target.value);

@@ -2,3 +2,5 @@
 - github is another source users may want to subscribe to, and also youtube? Definitely LinkedIn. And definitely podcasts
 - right now 'type' is just rss or bluesky. These are the categories that matter for scraping, but for the display, we should have a 'label' that is more granular (substack, blog, youtube, podcast, etc)
 - sample digest doesn't really make sense unless part of onboarding is subscribing to people. maybe we should just keep it in the app
+- need a back button from the "email sent" page
+- need to go through the scraped figures manually and delete the links that aren't good
