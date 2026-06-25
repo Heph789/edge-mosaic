@@ -35,14 +35,9 @@ export function Directory() {
     <div className="absolute inset-0 flex flex-col bg-background">
       <header className="z-10 shrink-0 border-b border-border bg-card px-4 pt-4 pb-3">
         <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-faint">
-              Edge Mosaic
-            </p>
-            <h1 className="font-display text-2xl font-bold leading-tight tracking-tight">
-              Directory
-            </h1>
-          </div>
+          <h1 className="font-display text-xl font-bold leading-tight tracking-tight">
+            Edge Mosaic
+          </h1>
           <div className="flex items-center gap-2">
             <Tabs value={view} onValueChange={(v) => setView(v as View)}>
               <TabsList className="h-9">
@@ -52,23 +47,22 @@ export function Directory() {
             </Tabs>
           </div>
         </div>
-        <p className="mt-1 font-mono text-[11px] text-faint">
-          {members.length} {members.length === 1 ? "member" : "members"}
-        </p>
-
-        {view === "list" && (
-          <div className="relative mt-3">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              autoFocus
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search by name, role, or city…"
-              className="rounded-full pl-9"
-            />
-          </div>
-        )}
+        {/* Search is available from either view; typing while in the mosaic flips to the
+            list, which is where results are filtered and scannable. */}
+        <div className="relative mt-3">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            type="search"
+            value={query}
+            onChange={(e) => {
+              const next = e.target.value;
+              setQuery(next);
+              if (next && view === "mosaic") setView("list");
+            }}
+            placeholder="Search by name or city…"
+            className="rounded-full pl-9"
+          />
+        </div>
       </header>
 
       <div className="min-h-0 flex-1">
