@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, ApiError, type Link, type MePatch, type Visibility } from "../api";
 import { useAuth } from "../auth";
-import { useSources, useUpdateMe } from "../hooks/queries";
+import { useUpdateMe } from "../hooks/queries";
 import {
   BioField,
   CitiesEditor,
@@ -53,7 +53,6 @@ export function Onboarding() {
   const [nameTouched, setNameTouched] = useState(false);
 
   const updateMe = useUpdateMe(applyUser);
-  const sources = useSources();
   const [sourcesVerifying, setSourcesVerifying] = useState(false);
   const last = step === STEPS.length - 1;
 
