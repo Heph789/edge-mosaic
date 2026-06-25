@@ -16,11 +16,29 @@ change. `save_image`/`delete_image` + the returned key shape are the stable cont
 
 from __future__ import annotations
 
+import io
 import secrets
 
 from fastapi import HTTPException, UploadFile, status
 
 from . import config
+
+# Max pixel dimension (longest side) per image kind.
+_MAX_PX = {"profile": 400, "tile": 800}
+
+
+def _compress(data: bytes, kind: str) -> bytes:
+    """Resize to max dimension and re-encode as WebP. Returns compressed bytes."""
+    from PIL import Image
+
+    img = Image.open(io.BytesIO(data))
+    # Preserve alpha channel (PNG); everything else → RGB.
+    img = img.convert("RGBA" if img.mode in ("RGBA", "LA", "PA") else "RGB")
+    max_px = _MAX_PX.get(kind, 800)
+    img.thumbnail((max_px, max_px), Image.LANCZOS)
+    out = io.BytesIO()
+    img.save(out, format="WEBP", quality=85, method=6)
+    return out.getvalue()
 
 
 class ImageRejected(HTTPException):
@@ -78,8 +96,9 @@ def save_image(user_id: int, kind: str, upload: UploadFile) -> str:
     `kind` is 'profile' | 'tile' (already validated by the caller). Raises ImageRejected
     on an unsupported content-type or a file over config.MAX_IMAGE_BYTES.
     """
-    ext, data = _validate(upload)
-    key = f"{user_id}/{kind}-{secrets.token_hex(8)}.{ext}"
+    _ext, data = _validate(upload)
+    data = _compress(data, kind)
+    key = f"{user_id}/{kind}-{secrets.token_hex(8)}.webp"
 
     if _use_s3():
         # Store the content-type so the public origin serves it back with the right header
@@ -88,7 +107,7 @@ def save_image(user_id: int, kind: str, upload: UploadFile) -> str:
             Bucket=config.MEDIA_S3_BUCKET,
             Key=key,
             Body=data,
-            ContentType=upload.content_type or "application/octet-stream",
+            ContentType="image/webp",
         )
     else:
         user_dir = config.MEDIA_DIR / str(user_id)

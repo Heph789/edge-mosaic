@@ -13,8 +13,8 @@ Behaviour (per the operator's constraints):
     in and set up what they wanted) is never touched — no flag, link, name, or visibility change.
     That `verified_at` gate *is* the "don't overwrite real user data" guarantee.
   - **Ghosts carry no user-authored data**, so a matched ghost is brought in line with the roster:
-    `speaker` flag, full `display_name` (upgrading an abbreviated allowlist name like "Jess L." to
-    "Jess Luibrand"), and `bio`.
+    `speaker` flag and full `display_name` (upgrading an abbreviated allowlist name like "Jess L."
+    to "Jess Luibrand"). Bios are intentionally NOT seeded right now.
   - **Links only when the ghost has none.** Curated links/sources are added only to a content-less
     ghost; one that already has links/sources is left alone (not duplicated, not replaced).
   - **Ghosts are village-scoped.** A ghost this seed *initializes* (creates, or first populates) is
@@ -189,7 +189,6 @@ def seed_speakers(session: Session, path: Path | None = None) -> SpeakerStats:
             user = User(
                 email=email,
                 display_name=spec.name,
-                bio=spec.bio,
                 speaker=True,
                 visibility=VISIBILITY_VILLAGE,  # ghosts are village-scoped, not edge-wide
             )
@@ -208,8 +207,6 @@ def seed_speakers(session: Session, path: Path | None = None) -> SpeakerStats:
         # an abbreviated allowlist name to the full speaker name).
         user.speaker = True
         user.display_name = spec.name
-        if spec.bio:
-            user.bio = spec.bio
         if _has_curated_content(session, user):
             stats.flagged_only += 1  # already has links — leave its content untouched (no dupes)
         else:
