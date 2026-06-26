@@ -9,11 +9,11 @@ from __future__ import annotations
 import re
 from typing import Annotated
 
-from fastapi import FastAPI, File, Header, HTTPException, Path, UploadFile, status
+from fastapi import BackgroundTasks, FastAPI, File, Header, HTTPException, Path, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from . import auth, config, storage, usernames
+from . import auth, config, email, storage, usernames
 from .deps import CurrentUser, DbDep
 from .models import ProfileLink, UserCity
 from .observability import init_sentry
@@ -68,9 +68,13 @@ def health() -> dict[str, str]:
 
 
 @app.post("/auth/request-link", response_model=GenericMessage)
-def request_link(body: RequestLinkIn, db: DbDep) -> GenericMessage:
+def request_link(body: RequestLinkIn, db: DbDep, background_tasks: BackgroundTasks) -> GenericMessage:
     # Always the same response — never reveals allowlist membership (§2 login privacy).
-    auth.request_magic_link(db, body.email)
+    # Email is dispatched after the DB session is released so the pool slot isn't held
+    # during the Resend HTTP call.
+    params = auth.request_magic_link(db, body.email)
+    if params is not None:
+        background_tasks.add_task(email.send_email, **params)
     return GenericMessage(message=_ELIGIBLE_MSG)
 
 

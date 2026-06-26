@@ -8,15 +8,22 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import TypedDict
 
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session as DbSession
 
 from . import config
-from .email import send_email
 from .models import AllowedEmail, MagicLinkToken, Session, User, utcnow
 from .security import hash_token, new_token
 from .villages import assign_default_village
+
+
+class _EmailParams(TypedDict):
+    to: str
+    subject: str
+    html: str
+    text: str
 
 
 def normalize_email(email: str) -> str:
@@ -30,14 +37,17 @@ def is_allowed(db: DbSession, email: str) -> bool:
     )
 
 
-def request_magic_link(db: DbSession, raw_email: str) -> None:
-    """Gate-check, then mint + 'send' a single-use link. Silent no-op if not allowed.
+def request_magic_link(db: DbSession, raw_email: str) -> _EmailParams | None:
+    """Gate-check, then mint a single-use link. Returns email params for the caller to
+    send asynchronously, or None if the address is not on the allowlist.
 
     The caller always returns the same generic response either way (§2 login privacy).
+    Returning the params (rather than calling send_email inline) keeps the DB connection
+    free before the Resend HTTP call happens.
     """
     email = normalize_email(raw_email)
     if not is_allowed(db, email):
-        return  # never reveal allowlist membership; do no work
+        return None  # never reveal allowlist membership; do no work
 
     now = utcnow()
     # One live link per email: invalidate any prior unused tokens.
@@ -69,7 +79,12 @@ def request_magic_link(db: DbSession, raw_email: str) -> None:
         f'<p>Click to log in (expires in {mins} min):</p>'
         f'<p><a href="{link}">Log in to Edge Mosaic</a></p>'
     )
-    send_email(to=email, subject="Your Edge Mosaic login link", html=html, text=text)
+    return _EmailParams(
+        to=email,
+        subject="Your Edge Mosaic login link",
+        html=html,
+        text=text,
+    )
 
 
 @dataclass

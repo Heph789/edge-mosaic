@@ -53,11 +53,17 @@ def _send_resend(to, subject, html, text, headers) -> None:
         payload["text"] = text
     if headers:
         payload["headers"] = headers
-    resp = httpx.post(
-        config.RESEND_API_URL,
-        json=payload,
-        headers={"Authorization": f"Bearer {config.RESEND_API_KEY}"},
-        timeout=15.0,
-    )
-    resp.raise_for_status()
-    log.info("EMAIL sent via Resend → %s | %s", to, subject)
+    try:
+        resp = httpx.post(
+            config.RESEND_API_URL,
+            json=payload,
+            headers={"Authorization": f"Bearer {config.RESEND_API_KEY}"},
+            timeout=15.0,
+        )
+        resp.raise_for_status()
+        log.info("EMAIL sent via Resend → %s | %s", to, subject)
+    except Exception:
+        # The magic-link token is already committed; the user can re-request the link.
+        # Log at ERROR so Sentry captures it, but don't propagate — the request already
+        # returned 200 and the user sees "check your email" regardless.
+        log.error("Resend delivery failed to %s (subject: %s)", to, subject, exc_info=True)
