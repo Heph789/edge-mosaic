@@ -4,8 +4,8 @@ Adds users.speaker — a boolean flag for pre-seeded speakers (Edge Esmeralda di
 Like is_notable it is display/curation only and carries no auth meaning. Notables are a subset
 of speakers, so existing notable rows are backfilled to speaker=true.
 
-Revision ID: 0010
-Revises: 0009
+Revision ID: 0011
+Revises: 0010
 Create Date: 2026-06-25
 
 """
@@ -17,8 +17,8 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "0010"
-down_revision: Union[str, None] = "0009"
+revision: str = "0011"
+down_revision: Union[str, None] = "0010"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
