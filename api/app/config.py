@@ -156,7 +156,9 @@ ALLOWED_IMAGE_TYPES = {
     "image/jpeg": "jpg",
     "image/webp": "webp",
 }
-VALID_IMAGE_KINDS = {"profile", "tile"}
+# One image per user (the profile photo, also rendered as the square mosaic tile). The
+# {kind} route param is kept as a seam for future image kinds (e.g. a banner).
+VALID_IMAGE_KINDS = {"profile"}
 
 # Where the magic link points in prod (the SPA verify route). Slice 2 only logs it.
 # Overridable so Slice 5 can point at the real CDN origin.

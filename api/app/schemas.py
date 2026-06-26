@@ -51,7 +51,6 @@ class UserOut(BaseModel):
     contact_phone: str | None
     contact_telegram: str | None
     profile_image_url: str | None
-    tile_image_url: str | None
     visibility: str
     cities: list[str]
     links: list[LinkOut]
@@ -72,7 +71,6 @@ class UserOut(BaseModel):
             contact_phone=user.contact_phone,
             contact_telegram=user.contact_telegram,
             profile_image_url=storage.public_url(user.profile_image_path),
-            tile_image_url=storage.public_url(user.tile_image_path),
             visibility=user.visibility,
             cities=[c.name for c in user.cities],
             links=[LinkOut(label=l.label, url=l.url) for l in user.links],
@@ -110,7 +108,6 @@ class PublicProfileOut(BaseModel):
     contact_email: str | None  # public contact only; phone stays private
     contact_telegram: str | None  # public contact handle
     profile_image_url: str | None
-    tile_image_url: str | None
     cities: list[str]
     links: list[LinkOut]
     platforms: list[str]
@@ -134,7 +131,6 @@ class PublicProfileOut(BaseModel):
             contact_email=user.contact_email,
             contact_telegram=user.contact_telegram,
             profile_image_url=storage.public_url(user.profile_image_path),
-            tile_image_url=storage.public_url(user.tile_image_path),
             cities=[c.name for c in user.cities],
             links=[LinkOut(label=l.label, url=l.url) for l in user.links],
             platforms=platforms,
@@ -244,8 +240,7 @@ class DiscoverOut(BaseModel):
     platforms: list[PlatformPillOut]  # feeder-source pills, each links out
     links: list[LinkOut]  # non-feeder profile links, shown as pressable pills too
     is_subscribed: bool
-    profile_image_url: str | None
-    tile_image_url: str | None  # the mosaic cell image (future mosaic UI)
+    profile_image_url: str | None  # shown circular as avatar, square as the mosaic tile
 
 
 # --- digest preview -------------------------------------------------------------------

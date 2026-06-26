@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Crosshair, Plus, Search } from "lucide-react";
+import { Crosshair, Search } from "lucide-react";
 import type { Discover, Link, PlatformPill } from "../api";
 import { useAllDiscover, useToggleSubscribeAll } from "../hooks/queries";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -10,7 +10,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { generatedTileBackground, initialsOf, spiral } from "@/lib/mosaic";
 
-const TILE = 92;
+const TILE = 106;
 
 type View = "mosaic" | "list";
 
@@ -35,14 +35,9 @@ export function Directory() {
     <div className="absolute inset-0 flex flex-col bg-background">
       <header className="z-10 shrink-0 border-b border-border bg-card px-4 pt-4 pb-3">
         <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-faint">
-              Edge Mosaic
-            </p>
-            <h1 className="font-display text-2xl font-bold leading-tight tracking-tight">
-              Directory
-            </h1>
-          </div>
+          <h1 className="font-display text-xl font-bold leading-tight tracking-tight">
+            Edge Mosaic
+          </h1>
           <div className="flex items-center gap-2">
             <Tabs value={view} onValueChange={(v) => setView(v as View)}>
               <TabsList className="h-9">
@@ -50,34 +45,24 @@ export function Directory() {
                 <TabsTrigger value="list" className="text-xs">List</TabsTrigger>
               </TabsList>
             </Tabs>
-            <Button
-              variant="outline"
-              size="sm"
-              className="shrink-0 gap-1.5"
-              onClick={() => navigate("/profile#tile")}
-            >
-              <Plus className="size-3.5" />
-              Add tile
-            </Button>
           </div>
         </div>
-        <p className="mt-1 font-mono text-[11px] text-faint">
-          {members.length} {members.length === 1 ? "member" : "members"}
-        </p>
-
-        {view === "list" && (
-          <div className="relative mt-3">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              autoFocus
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search by name, role, or city…"
-              className="rounded-full pl-9"
-            />
-          </div>
-        )}
+        {/* Search is available from either view; typing while in the mosaic flips to the
+            list, which is where results are filtered and scannable. */}
+        <div className="relative mt-3">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            type="search"
+            value={query}
+            onChange={(e) => {
+              const next = e.target.value;
+              setQuery(next);
+              if (next && view === "mosaic") setView("list");
+            }}
+            placeholder="Search by name or city…"
+            className="rounded-full pl-9"
+          />
+        </div>
       </header>
 
       <div className="min-h-0 flex-1">
@@ -111,7 +96,7 @@ function CenterNote({ children }: { children: React.ReactNode }) {
 
 // ----------------------------------------------------------------------------------------
 // Mosaic: a drag-to-pan canvas. Real-photo tiles cluster at the centre (assigned the first
-// spiral cells); generated tiles ring outward.
+// spiral cells); initials-only tiles ring outward.
 // ----------------------------------------------------------------------------------------
 function Mosaic({
   members,
@@ -133,7 +118,7 @@ function Mosaic({
   // Real-photo members first → they take the innermost spiral cells.
   const placed = useMemo(() => {
     const sorted = [...members].sort(
-      (a, b) => Number(!!b.tile_image_url) - Number(!!a.tile_image_url)
+      (a, b) => Number(!!b.profile_image_url) - Number(!!a.profile_image_url)
     );
     const cells = spiral(sorted.length);
     let extent = 0;
@@ -321,26 +306,30 @@ function MosaicTile({
     <button
       type="button"
       onClick={onOpen}
-      className="mosaic-tile absolute overflow-hidden rounded-md border border-border bg-secondary text-left shadow-sm"
+      className="mosaic-tile absolute overflow-hidden rounded-md border border-border text-left shadow-sm"
       style={{ left, top, width: TILE, height: TILE }}
     >
-      {row.tile_image_url ? (
+      {/* The generated gradient + initials sit underneath as the base layer. A photo
+          overlays them; if it fails to load, onError hides the <img> and they show through. */}
+      <span
+        className="flex h-full w-full items-center justify-center font-mono text-xl font-semibold text-ink/45"
+        style={{ background: generatedTileBackground(row.username) }}
+      >
+        {initialsOf(row.display_name, row.username)}
+      </span>
+      {row.profile_image_url && (
         <img
-          src={row.tile_image_url}
+          src={row.profile_image_url}
           alt=""
           draggable={false}
-          className="h-full w-full object-cover"
+          className="absolute inset-0 h-full w-full object-cover"
+          onError={(e) => {
+            e.currentTarget.style.display = "none";
+          }}
         />
-      ) : (
-        <span
-          className="flex h-full w-full items-center justify-center font-mono text-lg font-semibold text-ink/45"
-          style={{ background: generatedTileBackground(row.username) }}
-        >
-          {initialsOf(row.display_name, row.username)}
-        </span>
       )}
       <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/85 to-transparent px-2 pb-1.5 pt-5">
-        <span className="block truncate text-[11px] font-semibold leading-tight text-white">
+        <span className="block truncate text-[13px] font-semibold leading-tight text-white">
           {name}
         </span>
       </span>

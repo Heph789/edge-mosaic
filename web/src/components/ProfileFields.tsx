@@ -339,8 +339,8 @@ export function ImageUploader({
     }
   }
 
-  const previewShape =
-    kind === "profile" ? "size-16 rounded-full" : "size-20 rounded-lg";
+  // One photo, framed as a square — it doubles as your square in the Directory mosaic.
+  const previewShape = "size-20 rounded-lg";
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -360,7 +360,7 @@ export function ImageUploader({
             )}
             aria-hidden
           >
-            {kind === "profile" ? "🙂" : "▦"}
+            🙂
           </div>
         )}
         <div className="flex flex-col items-start gap-1">

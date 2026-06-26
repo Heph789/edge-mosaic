@@ -93,7 +93,7 @@ def _validate(upload: UploadFile) -> tuple[str, bytes]:
 def save_image(user_id: int, kind: str, upload: UploadFile) -> str:
     """Validate + persist an uploaded image; return its relative storage key.
 
-    `kind` is 'profile' | 'tile' (already validated by the caller). Raises ImageRejected
+    `kind` is 'profile' (already validated by the caller). Raises ImageRejected
     on an unsupported content-type or a file over config.MAX_IMAGE_BYTES.
     """
     _ext, data = _validate(upload)

@@ -116,27 +116,22 @@ function DisplayNameSection() {
   );
 }
 
-// Profile photo + mosaic tile. The tile section carries id="tile" so the Directory's
-// "Add your tile" control can deep-link straight to it (/profile#tile).
+// Profile photo — one image, shown circular as an avatar and square as the Directory
+// mosaic tile. Carries id="photo" so the Directory's "Add photo" control can deep-link
+// straight to it (/profile#photo).
 function PhotosSection() {
   const { user, applyUser } = useAuth();
   const { hash } = useLocation();
-  const tileRef = useRef<HTMLDivElement | null>(null);
+  const photoRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (hash === "#tile") tileRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (hash === "#photo") photoRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [hash]);
 
   return (
-    <Card className="flex flex-col gap-4" id="tile">
-      <CardTitle>Photos</CardTitle>
-      <div ref={tileRef} className="flex flex-wrap gap-8">
-        <ImageUploader
-          kind="tile"
-          label="Mosaic tile"
-          url={user?.tile_image_url ?? null}
-          onUser={applyUser}
-        />
+    <Card className="flex flex-col gap-4" id="photo">
+      <CardTitle>Photo</CardTitle>
+      <div ref={photoRef}>
         <ImageUploader
           kind="profile"
           label="Profile photo"
@@ -145,8 +140,7 @@ function PhotosSection() {
         />
       </div>
       <p className="text-xs text-muted-foreground">
-        Your tile is your square in the Directory mosaic. Without one, we generate a tile
-        from your name.
+        This is your square in the Directory mosaic too. Without one, your initials stand in.
       </p>
     </Card>
   );
@@ -219,6 +213,9 @@ function AboutSection() {
         />
         <div className="flex flex-col gap-1.5">
           <span className="text-sm font-medium">Sources</span>
+          <p className="text-xs text-muted-foreground">
+            Content from your sources shows up in your subscribers' digests.
+          </p>
           <SourcesEditor hideHint />
         </div>
         <LinksEditor links={links} onChange={setLinks} />

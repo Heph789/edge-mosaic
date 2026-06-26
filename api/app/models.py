@@ -108,10 +108,10 @@ class User(Base):
     contact_phone: Mapped[str | None] = mapped_column(String, nullable=True)
     # Telegram @handle (stored without the leading '@'), optional contact method.
     contact_telegram: Mapped[str | None] = mapped_column(String, nullable=True)
-    # Relative media keys (e.g. '12/profile-ab3.png'), not URLs — the public URL is derived
+    # Relative media key (e.g. '12/photo-ab3.png'), not a URL — the public URL is derived
     # from config.MEDIA_URL_PREFIX at serialization time so it survives an origin change.
+    # One image per user: shown circular as an avatar, square as the Directory mosaic tile.
     profile_image_path: Mapped[str | None] = mapped_column(String, nullable=True)
-    tile_image_path: Mapped[str | None] = mapped_column(String, nullable=True)
     visibility: Mapped[str] = mapped_column(
         String, nullable=False, default=VISIBILITY_COMMUNITY
     )
