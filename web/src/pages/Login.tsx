@@ -35,7 +35,7 @@ export function Login() {
         </h1>
         {sent ? (
           <p className="text-muted-foreground" role="status">
-            If your email is eligible, a login link is on its way. Check your inbox.
+            If your email is eligible, a login link is on its way. Check your inbox. If you're having trouble, message @chaselb on telegram.
           </p>
         ) : (
           <form onSubmit={onSubmit} className="flex flex-col gap-4">
