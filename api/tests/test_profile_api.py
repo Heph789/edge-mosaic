@@ -31,7 +31,8 @@ def isolated_media(tmp_path, monkeypatch):
 # A 1x1 transparent PNG (smallest valid file the upload path will accept).
 PNG_1PX = bytes.fromhex(
     "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489"
-    "0000000a49444154789c6360000002000154a24f600000000049454e44ae426082"
+    "0000000d49444154789c6360606060000000050001a5f645400000000049454e44"
+    "ae426082"
 )
 
 
@@ -93,7 +94,7 @@ def test_image_upload_replace_and_delete(client, make_user, auth):
     r = client.post("/me/images/profile", files=_png_file(), headers=h)
     assert r.status_code == 200, r.text
     url1 = r.json()["profile_image_url"]
-    assert url1 and url1.endswith(".png")
+    assert url1 and url1.endswith(".webp")
 
     # Replacing yields a different key (old file is cleaned up).
     r = client.post("/me/images/profile", files=_png_file("b.png"), headers=h)
@@ -136,8 +137,11 @@ def test_image_upload_s3_backend(client, make_user, auth, monkeypatch):
     assert "X-Amz-Signature=" in url
     assert len(puts) == 1
     assert puts[0]["Bucket"] == "test-bucket"
-    assert puts[0]["ContentType"] == "image/png"
-    assert puts[0]["Body"] == PNG_1PX
+    assert puts[0]["ContentType"] == "image/webp"
+    # Body is re-encoded WebP; verify it round-trips as a valid image.
+    from PIL import Image
+    img = Image.open(io.BytesIO(puts[0]["Body"]))
+    assert img.size == (1, 1)
     # The signed key matches what was stored, and the configured TTL is honored.
     assert signed[-1]["op"] == "get_object"
     assert signed[-1]["Params"]["Bucket"] == "test-bucket"
