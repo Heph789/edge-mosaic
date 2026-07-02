@@ -29,7 +29,7 @@ export function UnclaimedNotice({ name }: { name?: string | null }) {
         <button
           type="button"
           onClick={invite}
-          className="font-medium not-italic text-foreground underline underline-offset-2 hover:text-marigold"
+          className="font-bold underline underline-offset-2"
         >
           Tell them to sign up!
         </button>
