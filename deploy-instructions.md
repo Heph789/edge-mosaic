@@ -63,8 +63,11 @@ Railway will have created a service from the repo. Configure it:
 2. **Settings → Build:** confirm the builder is **Dockerfile** (`railway.json` already pins
    this; if you ever see Nixpacks, it's because the root dir isn't `api/`).
 3. **Networking → Generate Domain** to get a public URL, e.g.
-   `https://edge-mosaic-api.up.railway.app`. You'll need it for `API_BASE_URL` and the
-   frontend's `VITE_API_URL`.
+   `https://edge-mosaic-production.up.railway.app`. You'll need it for `API_BASE_URL` and the
+   frontend's `VITE_API_URL`. The subdomain is derived from the Railway service name — it is
+   **not** always `edge-mosaic-api`; check the generated domain in the Railway dashboard.
+   After noting the domain, also update `connect-src` in `web/vercel.json` to match, or API
+   calls will be blocked by the Content Security Policy when it is enforced.
 4. Add the environment variables below.
 
 ### API environment variables
@@ -73,7 +76,7 @@ Railway will have created a service from the repo. Configure it:
 | --------------- | --------- | -------------------------------------------------------------------------------------- |
 | `DATABASE_URL`  | yes       | Reference the Postgres plugin: `${{Postgres.DATABASE_URL}}`                             |
 | `APP_BASE_URL`  | yes       | The deployed SPA origin, e.g. `https://edge-mosaic.vercel.app` (magic-link target)      |
-| `API_BASE_URL`  | yes       | This API's own public origin, e.g. `https://edge-mosaic-api.up.railway.app`             |
+| `API_BASE_URL`  | yes       | This API's own public origin, e.g. `https://edge-mosaic-production.up.railway.app`      |
 | `CORS_ORIGINS`  | no        | Extra exact SPA origins allowed to call the API (comma-separated). Usually unneeded — see the regex note below |
 | `CORS_ORIGIN_REGEX` | no    | Override the default origin pattern. Empty string = match `CORS_ORIGINS` only                          |
 | `EMAIL_BACKEND` | no        | `console` (default, logs only) or `resend` for real delivery                           |
