@@ -94,7 +94,9 @@ export function useToggleSubscribeAll() {
       if (ctx?.prev) qc.setQueryData(key, ctx.prev);
     },
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: key });
+      // The optimistic patch above already holds the correct is_subscribed, so we skip
+      // re-invalidating (and thus refetching) the whole directory — that full-list refetch
+      // re-rendered every row. Only the derived subscription/digest views need revalidating.
       qc.invalidateQueries({ queryKey: keys.subscriptions });
       qc.invalidateQueries({ queryKey: keys.digestPreview });
     },
@@ -147,12 +149,15 @@ export function useToggleFollowProfile(username: string) {
       if (subscribe) await api.subscribe(feederId);
       else await api.unsubscribeFeeder(feederId);
     },
-    onSuccess: () => {
+    onSuccess: (_data, { feederId, subscribe }) => {
       qc.invalidateQueries({ queryKey: ["profile", username] });
       qc.invalidateQueries({ queryKey: keys.subscriptions });
-      qc.invalidateQueries({ queryKey: ["discover"] });
-      qc.invalidateQueries({ queryKey: keys.discoverAll });
       qc.invalidateQueries({ queryKey: keys.digestPreview });
+      // Patch the directory cache in place rather than invalidating it — refetching the
+      // whole ["discover-all"] list to reflect one toggle re-rendered every tile/row.
+      qc.setQueryData<Discover[]>(keys.discoverAll, (old) =>
+        old?.map((d) => (d.user_id === feederId ? { ...d, is_subscribed: subscribe } : d))
+      );
     },
   });
 }
