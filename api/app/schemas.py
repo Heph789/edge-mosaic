@@ -113,6 +113,7 @@ class PublicProfileOut(BaseModel):
     platforms: list[str]
     sources: list[ProfileSourceOut]  # the feeder's content feeds, as clickable links
     is_subscribed: bool
+    verified: bool  # proven-inbox at least once; False = unclaimed, pre-seeded profile
 
     @classmethod
     def from_user(
@@ -136,6 +137,7 @@ class PublicProfileOut(BaseModel):
             platforms=platforms,
             sources=sources,
             is_subscribed=is_subscribed,
+            verified=user.verified_at is not None,
         )
 
 

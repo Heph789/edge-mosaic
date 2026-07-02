@@ -59,6 +59,7 @@ export type PublicProfile = {
   platforms: string[];
   sources: ProfileSource[];
   is_subscribed: boolean;
+  verified: boolean; // proven-inbox at least once; false = unclaimed, pre-seeded profile
 };
 
 export type VerifyResult = { session_token: string; user: User };

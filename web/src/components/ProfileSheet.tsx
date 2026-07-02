@@ -11,6 +11,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { SubscribeButton } from "@/components/SubscribeButton";
+import { UnclaimedNotice } from "@/components/UnclaimedNotice";
 import { initialsOf } from "@/lib/mosaic";
 
 // URL-driven profile overlay. Rendered by the background-location route in routes.tsx so
@@ -64,9 +65,13 @@ export function ProfileSheet() {
               </SheetHeader>
             </div>
 
-            {p.bio && (
+            {!p.verified ? (
+              <div className="mt-4">
+                <UnclaimedNotice name={p.display_name} />
+              </div>
+            ) : p.bio ? (
               <p className="mt-4 text-[15px] leading-relaxed text-foreground/85">{p.bio}</p>
-            )}
+            ) : null}
 
             {p.sources.length > 0 && (
               <Section label="Feeds">
