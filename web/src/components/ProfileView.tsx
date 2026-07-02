@@ -3,7 +3,7 @@
 import type { ProfileSource, PublicProfile } from "../api";
 import { UnverifiedBadge } from "./UnverifiedBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
+import { SubscribeButton } from "@/components/SubscribeButton";
 import { initialsOf } from "@/lib/mosaic";
 
 export function Avatar60({ url, name, handle }: { url: string | null; name: string | null; handle: string }) {
@@ -83,14 +83,14 @@ export function ProfileView({
         </p>
       )}
 
-      <Button
+      <SubscribeButton
         className="self-start"
-        variant={p.is_subscribed ? "subscribed" : "default"}
-        onClick={() => onToggleFollow(!p.is_subscribed)}
-        disabled={pending}
-      >
-        {p.is_subscribed ? "✓ Subscribed" : "Subscribe"}
-      </Button>
+        hasFeeders={p.sources.length > 0}
+        isSubscribed={p.is_subscribed}
+        pending={pending}
+        onToggle={onToggleFollow}
+        name={p.display_name}
+      />
     </div>
   );
 }

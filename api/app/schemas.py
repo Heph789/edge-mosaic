@@ -241,6 +241,7 @@ class DiscoverOut(BaseModel):
     links: list[LinkOut]  # non-feeder profile links, shown as pressable pills too
     is_subscribed: bool
     profile_image_url: str | None  # shown circular as avatar, square as the mosaic tile
+    verified: bool  # proven-inbox at least once; False = pre-seeded ghost, not yet registered
 
 
 # --- digest preview -------------------------------------------------------------------

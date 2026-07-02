@@ -104,6 +104,7 @@ export type Discover = {
   links: Link[]; // non-feeder profile links, shown as pressable pills too
   is_subscribed: boolean;
   profile_image_url: string | null; // shown circular as avatar, square as the mosaic tile
+  verified: boolean; // proven-inbox at least once; false = pre-seeded ghost, not yet registered
 };
 
 export type DigestItem = {

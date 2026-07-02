@@ -4,9 +4,9 @@ import { Crosshair, Search } from "lucide-react";
 import type { Discover, Link, PlatformPill } from "../api";
 import { useAllDiscover, useToggleSubscribeAll } from "../hooks/queries";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SubscribeButton } from "@/components/SubscribeButton";
 import { cn } from "@/lib/utils";
 import { generatedTileBackground, initialsOf, spiral } from "@/lib/mosaic";
 
@@ -27,8 +27,8 @@ export function Directory() {
   function openProfile(username: string) {
     navigate(`/p/${username}`, { state: { backgroundLocation: location } });
   }
-  function onToggle(row: Discover) {
-    toggle.mutate({ userId: row.user_id, subscribe: !row.is_subscribed });
+  function onToggle(row: Discover, subscribe: boolean) {
+    toggle.mutate({ userId: row.user_id, subscribe });
   }
 
   return (
@@ -302,11 +302,17 @@ function MosaicTile({
   onOpen: () => void;
 }) {
   const name = row.display_name ?? "Unnamed";
+  // Pre-seeded ghosts: no links at all (neither feeder sources nor profile links) and never
+  // registered (unverified inbox). Fade these so live members read as the foreground.
+  const isPlaceholder =
+    !row.verified && row.links.length === 0 && row.platforms.length === 0;
   return (
     <button
       type="button"
       onClick={onOpen}
-      className="mosaic-tile absolute overflow-hidden rounded-md border border-border text-left shadow-sm"
+      className={`mosaic-tile absolute overflow-hidden rounded-md border border-border text-left shadow-sm${
+        isPlaceholder ? " opacity-50" : ""
+      }`}
       style={{ left, top, width: TILE, height: TILE }}
     >
       {/* The generated gradient + initials sit underneath as the base layer. A photo
@@ -351,7 +357,7 @@ function ListView({
   query: string;
   pending: boolean;
   onOpen: (username: string) => void;
-  onToggle: (row: Discover) => void;
+  onToggle: (row: Discover, subscribe: boolean) => void;
 }) {
   const term = query.trim().toLowerCase();
   const filtered = term
@@ -378,7 +384,7 @@ function ListView({
             row={m}
             pending={pending}
             onOpen={() => onOpen(m.username)}
-            onToggle={() => onToggle(m)}
+            onToggle={(subscribe) => onToggle(m, subscribe)}
           />
         ))}
       </ul>
@@ -395,7 +401,7 @@ function ListRow({
   row: Discover;
   pending: boolean;
   onOpen: () => void;
-  onToggle: () => void;
+  onToggle: (subscribe: boolean) => void;
 }) {
   const name = row.display_name ?? "Unnamed";
   return (
@@ -422,15 +428,15 @@ function ListRow({
             )}
           </div>
         </button>
-        <Button
-          size="sm"
-          variant={row.is_subscribed ? "subscribed" : "default"}
-          disabled={pending}
-          onClick={onToggle}
+        <SubscribeButton
+          hasFeeders={row.platforms.length > 0}
+          isSubscribed={row.is_subscribed}
+          pending={pending}
+          onToggle={onToggle}
+          name={row.display_name}
           className="shrink-0"
-        >
-          {row.is_subscribed ? "✓ Subscribed" : "Subscribe"}
-        </Button>
+          size="sm"
+        />
       </div>
       <Pills platforms={row.platforms} links={row.links} className="mt-3 pl-[3.75rem]" />
     </li>

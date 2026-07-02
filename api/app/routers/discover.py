@@ -79,6 +79,7 @@ def discover(
                 User.bio,
                 User.profile_image_path,
                 primary_city.label("city"),
+                User.verified_at,
             )
             .where(*conditions)
             # Stable total order (rank, name, id) so offset paging never skips/repeats rows.
@@ -122,6 +123,7 @@ def discover(
             links=links.get(fid, []),
             is_subscribed=fid in subscribed,
             profile_image_url=public_url(profile_path),
+            verified=verified_at is not None,
         )
-        for fid, username, name, bio, profile_path, city in rows
+        for fid, username, name, bio, profile_path, city, verified_at in rows
     ]
