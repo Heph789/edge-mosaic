@@ -59,6 +59,8 @@ export type PublicProfile = {
   platforms: string[];
   sources: ProfileSource[];
   is_subscribed: boolean;
+  verified: boolean; // proven-inbox at least once; false = unclaimed, pre-seeded profile
+  has_email: boolean; // false = pre-seeded ghost with no account email (can't log in yet)
 };
 
 export type VerifyResult = { session_token: string; user: User };
@@ -104,6 +106,7 @@ export type Discover = {
   links: Link[]; // non-feeder profile links, shown as pressable pills too
   is_subscribed: boolean;
   profile_image_url: string | null; // shown circular as avatar, square as the mosaic tile
+  verified: boolean; // proven-inbox at least once; false = pre-seeded ghost, not yet registered
 };
 
 export type DigestItem = {

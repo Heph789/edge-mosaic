@@ -272,13 +272,13 @@ export function VisibilityToggle({
   const options: { v: Visibility; title: string; desc: string }[] = [
     {
       v: "community",
-      title: "Entire edge community",
-      desc: "Anyone in the community can find you.",
+      title: "Entire Edge community",
+      desc: "Anyone who's attended an Edge City pop-up can see your profile.",
     },
     {
       v: "village",
-      title: "Just my village(s)",
-      desc: "Only people who share a village with you.",
+      title: "Just my village",
+      desc: "Only people who attended Esmeralda '26 can see your profile.",
     },
   ];
   return (

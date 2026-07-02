@@ -3,7 +3,8 @@
 import type { ProfileSource, PublicProfile } from "../api";
 import { UnverifiedBadge } from "./UnverifiedBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
+import { SubscribeButton } from "@/components/SubscribeButton";
+import { UnclaimedNotice } from "@/components/UnclaimedNotice";
 import { initialsOf } from "@/lib/mosaic";
 
 export function Avatar60({ url, name, handle }: { url: string | null; name: string | null; handle: string }) {
@@ -39,7 +40,11 @@ export function ProfileView({
         </div>
       </div>
 
-      {p.bio && <p className="text-[15px] leading-relaxed text-foreground/85">{p.bio}</p>}
+      {!p.verified ? (
+        <UnclaimedNotice name={p.display_name} canClaim={!p.has_email} />
+      ) : p.bio ? (
+        <p className="text-[15px] leading-relaxed text-foreground/85">{p.bio}</p>
+      ) : null}
 
       <SourceLinks sources={p.sources} />
 
@@ -83,14 +88,14 @@ export function ProfileView({
         </p>
       )}
 
-      <Button
+      <SubscribeButton
         className="self-start"
-        variant={p.is_subscribed ? "subscribed" : "default"}
-        onClick={() => onToggleFollow(!p.is_subscribed)}
-        disabled={pending}
-      >
-        {p.is_subscribed ? "✓ Subscribed" : "Subscribe"}
-      </Button>
+        hasFeeders={p.sources.length > 0}
+        isSubscribed={p.is_subscribed}
+        pending={pending}
+        onToggle={onToggleFollow}
+        name={p.display_name}
+      />
     </div>
   );
 }

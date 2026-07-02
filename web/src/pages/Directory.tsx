@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Crosshair, Search } from "lucide-react";
 import type { Discover, Link, PlatformPill } from "../api";
 import { useAllDiscover, useToggleSubscribeAll } from "../hooks/queries";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SubscribeButton } from "@/components/SubscribeButton";
 import { cn } from "@/lib/utils";
 import { generatedTileBackground, initialsOf, spiral } from "@/lib/mosaic";
 
@@ -24,12 +24,22 @@ export function Directory() {
 
   const members = data ?? [];
 
-  function openProfile(username: string) {
-    navigate(`/p/${username}`, { state: { backgroundLocation: location } });
-  }
-  function onToggle(row: Discover) {
-    toggle.mutate({ userId: row.user_id, subscribe: !row.is_subscribed });
-  }
+  // Only the row whose mutation is in flight is "pending" — a shared toggle.isPending would
+  // dim every Subscribe button at once.
+  const mutate = toggle.mutate;
+  const pendingId = toggle.isPending ? toggle.variables?.userId ?? null : null;
+
+  // Stable callbacks so memoized rows only re-render when their own data changes.
+  const openProfile = useCallback(
+    (username: string) => {
+      navigate(`/p/${username}`, { state: { backgroundLocation: location } });
+    },
+    [navigate, location]
+  );
+  const onToggle = useCallback(
+    (userId: number, subscribe: boolean) => mutate({ userId, subscribe }),
+    [mutate]
+  );
 
   return (
     <div className="absolute inset-0 flex flex-col bg-background">
@@ -76,7 +86,7 @@ export function Directory() {
           <ListView
             members={members}
             query={query}
-            pending={toggle.isPending}
+            pendingId={pendingId}
             onOpen={openProfile}
             onToggle={onToggle}
           />
@@ -302,11 +312,17 @@ function MosaicTile({
   onOpen: () => void;
 }) {
   const name = row.display_name ?? "Unnamed";
+  // Pre-seeded ghosts: no links at all (neither feeder sources nor profile links) and never
+  // registered (unverified inbox). Fade these so live members read as the foreground.
+  const isPlaceholder =
+    !row.verified && row.links.length === 0 && row.platforms.length === 0;
   return (
     <button
       type="button"
       onClick={onOpen}
-      className="mosaic-tile absolute overflow-hidden rounded-md border border-border text-left shadow-sm"
+      className={`mosaic-tile absolute overflow-hidden rounded-md border border-border text-left shadow-sm${
+        isPlaceholder ? " opacity-50" : ""
+      }`}
       style={{ left, top, width: TILE, height: TILE }}
     >
       {/* The generated gradient + initials sit underneath as the base layer. A photo
@@ -343,15 +359,15 @@ function MosaicTile({
 function ListView({
   members,
   query,
-  pending,
+  pendingId,
   onOpen,
   onToggle,
 }: {
   members: Discover[];
   query: string;
-  pending: boolean;
+  pendingId: number | null;
   onOpen: (username: string) => void;
-  onToggle: (row: Discover) => void;
+  onToggle: (userId: number, subscribe: boolean) => void;
 }) {
   const term = query.trim().toLowerCase();
   const filtered = term
@@ -376,9 +392,9 @@ function ListView({
           <ListRow
             key={m.user_id}
             row={m}
-            pending={pending}
-            onOpen={() => onOpen(m.username)}
-            onToggle={() => onToggle(m)}
+            pending={m.user_id === pendingId}
+            onOpen={onOpen}
+            onToggle={onToggle}
           />
         ))}
       </ul>
@@ -386,7 +402,7 @@ function ListView({
   );
 }
 
-function ListRow({
+const ListRow = memo(function ListRow({
   row,
   pending,
   onOpen,
@@ -394,8 +410,8 @@ function ListRow({
 }: {
   row: Discover;
   pending: boolean;
-  onOpen: () => void;
-  onToggle: () => void;
+  onOpen: (username: string) => void;
+  onToggle: (userId: number, subscribe: boolean) => void;
 }) {
   const name = row.display_name ?? "Unnamed";
   return (
@@ -403,7 +419,7 @@ function ListRow({
       <div className="flex items-start gap-3">
         <button
           type="button"
-          onClick={onOpen}
+          onClick={() => onOpen(row.username)}
           className="flex min-w-0 flex-1 items-start gap-3 text-left"
         >
           <Avatar className="size-12 border border-border">
@@ -422,20 +438,20 @@ function ListRow({
             )}
           </div>
         </button>
-        <Button
-          size="sm"
-          variant={row.is_subscribed ? "subscribed" : "default"}
-          disabled={pending}
-          onClick={onToggle}
+        <SubscribeButton
+          hasFeeders={row.platforms.length > 0}
+          isSubscribed={row.is_subscribed}
+          pending={pending}
+          onToggle={(subscribe) => onToggle(row.user_id, subscribe)}
+          name={row.display_name}
           className="shrink-0"
-        >
-          {row.is_subscribed ? "✓ Subscribed" : "Subscribe"}
-        </Button>
+          size="sm"
+        />
       </div>
       <Pills platforms={row.platforms} links={row.links} className="mt-3 pl-[3.75rem]" />
     </li>
   );
-}
+});
 
 // ----------------------------------------------------------------------------------------
 // Pills — feeder-source pills (link out) + non-feeder profile links.

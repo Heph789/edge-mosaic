@@ -10,6 +10,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { SubscribeButton } from "@/components/SubscribeButton";
+import { UnclaimedNotice } from "@/components/UnclaimedNotice";
 import { initialsOf } from "@/lib/mosaic";
 
 // URL-driven profile overlay. Rendered by the background-location route in routes.tsx so
@@ -63,9 +65,13 @@ export function ProfileSheet() {
               </SheetHeader>
             </div>
 
-            {p.bio && (
+            {!p.verified ? (
+              <div className="mt-4">
+                <UnclaimedNotice name={p.display_name} canClaim={!p.has_email} />
+              </div>
+            ) : p.bio ? (
               <p className="mt-4 text-[15px] leading-relaxed text-foreground/85">{p.bio}</p>
-            )}
+            ) : null}
 
             {p.sources.length > 0 && (
               <Section label="Feeds">
@@ -113,16 +119,14 @@ export function ProfileSheet() {
             )}
 
             <div className="mt-6 flex items-center gap-2">
-              <Button
+              <SubscribeButton
                 className="flex-1"
-                variant={p.is_subscribed ? "subscribed" : "default"}
-                disabled={toggle.isPending}
-                onClick={() =>
-                  toggle.mutate({ feederId: p.id, subscribe: !p.is_subscribed })
-                }
-              >
-                {p.is_subscribed ? "✓ Subscribed" : "Subscribe"}
-              </Button>
+                hasFeeders={p.sources.length > 0}
+                isSubscribed={p.is_subscribed}
+                pending={toggle.isPending}
+                onToggle={(subscribe) => toggle.mutate({ feederId: p.id, subscribe })}
+                name={p.display_name}
+              />
               {p.contact_email && (
                 <Button asChild variant="outline" size="icon" aria-label="Email">
                   <a href={`mailto:${p.contact_email}`}>

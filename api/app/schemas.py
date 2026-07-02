@@ -113,6 +113,8 @@ class PublicProfileOut(BaseModel):
     platforms: list[str]
     sources: list[ProfileSourceOut]  # the feeder's content feeds, as clickable links
     is_subscribed: bool
+    verified: bool  # proven-inbox at least once; False = unclaimed, pre-seeded profile
+    has_email: bool  # False = pre-seeded ghost with no account email (can't log in yet)
 
     @classmethod
     def from_user(
@@ -136,6 +138,8 @@ class PublicProfileOut(BaseModel):
             platforms=platforms,
             sources=sources,
             is_subscribed=is_subscribed,
+            verified=user.verified_at is not None,
+            has_email=user.email is not None,
         )
 
 
@@ -241,6 +245,7 @@ class DiscoverOut(BaseModel):
     links: list[LinkOut]  # non-feeder profile links, shown as pressable pills too
     is_subscribed: bool
     profile_image_url: str | None  # shown circular as avatar, square as the mosaic tile
+    verified: bool  # proven-inbox at least once; False = pre-seeded ghost, not yet registered
 
 
 # --- digest preview -------------------------------------------------------------------
