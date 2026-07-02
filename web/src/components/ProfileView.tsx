@@ -41,7 +41,7 @@ export function ProfileView({
       </div>
 
       {!p.verified ? (
-        <UnclaimedNotice name={p.display_name} />
+        <UnclaimedNotice name={p.display_name} canClaim={!p.has_email} />
       ) : p.bio ? (
         <p className="text-[15px] leading-relaxed text-foreground/85">{p.bio}</p>
       ) : null}

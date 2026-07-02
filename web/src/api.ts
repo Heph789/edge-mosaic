@@ -60,6 +60,7 @@ export type PublicProfile = {
   sources: ProfileSource[];
   is_subscribed: boolean;
   verified: boolean; // proven-inbox at least once; false = unclaimed, pre-seeded profile
+  has_email: boolean; // false = pre-seeded ghost with no account email (can't log in yet)
 };
 
 export type VerifyResult = { session_token: string; user: User };

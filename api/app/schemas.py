@@ -114,6 +114,7 @@ class PublicProfileOut(BaseModel):
     sources: list[ProfileSourceOut]  # the feeder's content feeds, as clickable links
     is_subscribed: bool
     verified: bool  # proven-inbox at least once; False = unclaimed, pre-seeded profile
+    has_email: bool  # False = pre-seeded ghost with no account email (can't log in yet)
 
     @classmethod
     def from_user(
@@ -138,6 +139,7 @@ class PublicProfileOut(BaseModel):
             sources=sources,
             is_subscribed=is_subscribed,
             verified=user.verified_at is not None,
+            has_email=user.email is not None,
         )
 
 

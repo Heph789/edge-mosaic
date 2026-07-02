@@ -1,8 +1,17 @@
+import { Send } from "lucide-react";
+
 // Shown in place of the bio for a profile whose owner hasn't claimed it yet (unverified,
 // pre-seeded). "Tell them to sign up!" opens the native share/contact sheet on mobile so the
 // viewer can nudge them, falling back to an email draft on desktop. "Is this you?" is a
-// placeholder for a future support/contact page where the real owner can claim the profile.
-export function UnclaimedNotice({ name }: { name?: string | null }) {
+// placeholder for a future support/contact page where the real owner can claim the profile —
+// shown only for pure link-ghosts (no account email on file), i.e. `canClaim`.
+export function UnclaimedNotice({
+  name,
+  canClaim = false,
+}: {
+  name?: string | null;
+  canClaim?: boolean;
+}) {
   async function invite() {
     const who = name?.trim();
     const text = `${who ? `${who}, you` : "You"}'ve got a profile on Edge Mosaic — claim it and start sharing your feeds.`;
@@ -29,18 +38,21 @@ export function UnclaimedNotice({ name }: { name?: string | null }) {
         <button
           type="button"
           onClick={invite}
-          className="font-bold underline underline-offset-2"
+          className="inline-flex items-center gap-1 align-[-0.15em] text-marigold underline underline-offset-2 transition-colors hover:text-marigold/80"
         >
-          Tell them to sign up!
+          Tell them to sign up
+          <Send className="size-3.5" aria-hidden />
         </button>
       </p>
-      <button
-        type="button"
-        // TODO: route to a support/contact page so the real owner can claim this profile.
-        className="text-xs italic text-faint underline underline-offset-2 transition-colors hover:text-foreground"
-      >
-        Is this you?
-      </button>
+      {canClaim && (
+        <button
+          type="button"
+          // TODO: route to a support/contact page so the real owner can claim this profile.
+          className="text-xs italic text-faint underline underline-offset-2 transition-colors hover:text-foreground"
+        >
+          Is this you?
+        </button>
+      )}
     </div>
   );
 }

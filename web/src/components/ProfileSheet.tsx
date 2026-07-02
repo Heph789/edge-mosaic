@@ -67,7 +67,7 @@ export function ProfileSheet() {
 
             {!p.verified ? (
               <div className="mt-4">
-                <UnclaimedNotice name={p.display_name} />
+                <UnclaimedNotice name={p.display_name} canClaim={!p.has_email} />
               </div>
             ) : p.bio ? (
               <p className="mt-4 text-[15px] leading-relaxed text-foreground/85">{p.bio}</p>
