@@ -433,13 +433,9 @@ const ListRow = memo(function ListRow({
                 <p className="font-mono text-[11px] text-faint">{row.city}</p>
               )}
             </div>
-            {row.bio ? (
+            {row.bio && (
               <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{row.bio}</p>
-            ) : !row.verified ? (
-              <p className="mt-1 text-sm italic text-muted-foreground">
-                Hasn’t claimed their profile yet
-              </p>
-            ) : null}
+            )}
           </div>
         </button>
         <SubscribeButton
