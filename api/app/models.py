@@ -54,8 +54,9 @@ VISIBILITY_VILLAGE = "village"
 
 # Source verification status (plain string, no native enum — keeps SQLite/Postgres parity):
 #   'active'     — scraped successfully at least once; feeds the digest and shows on the profile
-#   'unverified' — couldn't be read yet (dead/unsupported feed). Shows on the profile with a
-#                  warning, but is excluded from followers' digests. A later scrape can promote it.
+#   'unverified' — couldn't be read yet (dead/unsupported feed). Shows on the profile as a
+#                  plain link (not a Feed), and is excluded from followers' digests. A later
+#                  scrape can promote it to 'active'.
 SOURCE_STATUS_ACTIVE = "active"
 SOURCE_STATUS_UNVERIFIED = "unverified"
 

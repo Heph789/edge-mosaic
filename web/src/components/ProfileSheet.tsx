@@ -10,9 +10,11 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { InfoTooltip } from "@/components/InfoTooltip";
 import { SubscribeButton } from "@/components/SubscribeButton";
 import { UnclaimedNotice } from "@/components/UnclaimedNotice";
 import { initialsOf } from "@/lib/mosaic";
+import { splitSources } from "@/lib/sources";
 
 // URL-driven profile overlay. Rendered by the background-location route in routes.tsx so
 // the Directory stays mounted behind it; closing pops back to where you were.
@@ -21,6 +23,8 @@ export function ProfileSheet() {
   const navigate = useNavigate();
   const { data: p, isLoading, isError } = useProfile(username ?? null);
   const toggle = useToggleFollowProfile(username ?? "");
+  const { feeds, unscrapableLinks } = splitSources(p?.sources ?? []);
+  const links = [...(p?.links ?? []), ...unscrapableLinks];
 
   function close() {
     navigate(-1);
@@ -73,10 +77,17 @@ export function ProfileSheet() {
               <p className="mt-4 text-[15px] leading-relaxed text-foreground/85">{p.bio}</p>
             ) : null}
 
-            {p.sources.length > 0 && (
-              <Section label="Feeds">
+            {feeds.length > 0 && (
+              <Section
+                label={
+                  <>
+                    Feeds
+                    <InfoTooltip note="Feed links are where this member's posts get pulled from for the digest — things like their newsletter, YouTube channel, or podcast." />
+                  </>
+                }
+              >
                 <ul className="flex flex-col gap-2">
-                  {p.sources.map((s, i) => (
+                  {feeds.map((s, i) => (
                     <li key={i} className="flex min-w-0 items-center gap-2">
                       <a
                         href={s.url}
@@ -89,21 +100,16 @@ export function ProfileSheet() {
                       <span className="shrink-0 rounded-full border border-border bg-secondary px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
                         {s.label}
                       </span>
-                      {s.status === "unverified" && (
-                        <span className="shrink-0 rounded-full border border-[#e8d18a] bg-[#fdf0d5] px-2 py-0.5 font-mono text-[10px] text-[#8a6d1c]">
-                          unverified
-                        </span>
-                      )}
                     </li>
                   ))}
                 </ul>
               </Section>
             )}
 
-            {p.links.length > 0 && (
+            {links.length > 0 && (
               <Section label="Links">
                 <div className="flex flex-wrap gap-1.5">
-                  {p.links.map((l, i) => (
+                  {links.map((l, i) => (
                     <a
                       key={i}
                       href={l.url}
@@ -121,7 +127,7 @@ export function ProfileSheet() {
             <div className="mt-6 flex items-center gap-2">
               <SubscribeButton
                 className="flex-1"
-                hasFeeders={p.sources.length > 0}
+                hasFeeders={feeds.length > 0}
                 isSubscribed={p.is_subscribed}
                 pending={toggle.isPending}
                 onToggle={(subscribe) => toggle.mutate({ feederId: p.id, subscribe })}
@@ -153,10 +159,10 @@ export function ProfileSheet() {
   );
 }
 
-function Section({ label, children }: { label: string; children: React.ReactNode }) {
+function Section({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="mt-5">
-      <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.12em] text-faint">
+      <p className="mb-2 flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.12em] text-faint">
         {label}
       </p>
       {children}

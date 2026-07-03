@@ -72,8 +72,8 @@ def add_source(body: UrlIn, user: CurrentUser, db: DbDep) -> SourceOut:
     result = scrape_source(db, source)
     if not result.ok:
         # Couldn't read a feed (dead/unsupported/substack-profile/etc.). We no longer reject:
-        # keep the source as 'unverified' so it shows on the profile with a warning and is
-        # excluded from digests. A later scrape-cron run can promote it to 'active'.
+        # keep the source as 'unverified' so it shows on the profile as a plain link (not a
+        # Feed) and is excluded from digests. A later scrape-cron run can promote it to 'active'.
         source.status = SOURCE_STATUS_UNVERIFIED
         db.commit()
     return SourceOut.from_source(source)
