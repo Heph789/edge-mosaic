@@ -33,7 +33,7 @@ export function Profile() {
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-5">
         <header className="flex items-start justify-between">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-faint">
+            <p className="font-mono text-[10px] lg:text-[12px] uppercase tracking-[0.18em] text-faint">
               Edge Mosaic
             </p>
             <h1 className="font-display text-2xl font-bold tracking-tight">Profile</h1>
@@ -47,7 +47,7 @@ export function Profile() {
           <span>{user?.email}</span>
           {user && (
             <span>
-              Public profile:{" "}
+              Mosaic profile:{" "}
               <RouterLink
                 to={`/p/${user.username}`}
                 className="text-foreground underline-offset-2 hover:underline"

@@ -29,7 +29,7 @@ export function InfoTooltip({ note }: { note: string }) {
         <CircleHelp className="size-3.5" />
       </button>
       <span
-        className={`absolute left-0 top-full z-10 mt-1.5 w-48 max-w-[70vw] rounded-md border border-border bg-popover p-2 text-[11px] normal-case leading-snug tracking-normal text-popover-foreground shadow-md group-hover:block group-focus-within:block ${
+        className={`absolute left-0 top-full z-10 mt-1.5 w-48 max-w-[70vw] rounded-md border border-border bg-popover p-2 text-[11px] lg:text-[13px] normal-case leading-snug tracking-normal text-popover-foreground shadow-md group-hover:block group-focus-within:block ${
           open ? "block" : "hidden"
         }`}
       >

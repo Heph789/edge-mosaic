@@ -74,7 +74,7 @@ export function ProfileSheet() {
                 <UnclaimedNotice name={p.display_name} canClaim={!p.has_email} />
               </div>
             ) : p.bio ? (
-              <p className="mt-4 text-[15px] leading-relaxed text-foreground/85">{p.bio}</p>
+              <p className="mt-4 text-[15px] lg:text-[18px] leading-relaxed text-foreground/85">{p.bio}</p>
             ) : null}
 
             {feeds.length > 0 && (
@@ -97,7 +97,7 @@ export function ProfileSheet() {
                       >
                         {s.title ?? s.url}
                       </a>
-                      <span className="shrink-0 rounded-full border border-border bg-secondary px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
+                      <span className="shrink-0 rounded-full border border-border bg-secondary px-2 py-0.5 font-mono text-[10px] lg:text-[12px] text-muted-foreground">
                         {s.label}
                       </span>
                     </li>
@@ -115,7 +115,7 @@ export function ProfileSheet() {
                       href={l.url}
                       target="_blank"
                       rel="noreferrer noopener"
-                      className="rounded-full border border-border px-2.5 py-1 font-mono text-[11px] text-muted-foreground transition-colors hover:border-marigold hover:text-foreground"
+                      className="rounded-full border border-border px-2.5 py-1 font-mono text-[11px] lg:text-[13px] text-muted-foreground transition-colors hover:border-marigold hover:text-foreground"
                     >
                       {l.label}
                     </a>
@@ -162,7 +162,7 @@ export function ProfileSheet() {
 function Section({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="mt-5">
-      <p className="mb-2 flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.12em] text-faint">
+      <p className="mb-2 flex items-center gap-1 font-mono text-[10px] lg:text-[12px] uppercase tracking-[0.12em] text-faint">
         {label}
       </p>
       {children}

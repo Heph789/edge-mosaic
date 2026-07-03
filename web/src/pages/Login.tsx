@@ -27,7 +27,7 @@ export function Login() {
   return (
     <div className="grid h-full place-items-center px-5">
       <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-7 shadow-sm">
-        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-faint">
+        <p className="font-mono text-[10px] lg:text-[12px] uppercase tracking-[0.18em] text-faint">
           Welcome to
         </p>
         <h1 className="mb-5 font-display text-3xl font-bold tracking-tight">

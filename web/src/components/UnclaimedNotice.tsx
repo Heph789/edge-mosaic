@@ -33,7 +33,7 @@ export function UnclaimedNotice({
 
   return (
     <div className="space-y-1.5">
-      <p className="text-[15px] italic leading-relaxed text-muted-foreground">
+      <p className="text-[15px] lg:text-[18px] italic leading-relaxed text-muted-foreground">
         This user has not yet claimed their profile.{" "}
         <button
           type="button"
