@@ -29,9 +29,12 @@ _MAX_PX = {"profile": 400, "tile": 800}
 
 def _compress(data: bytes, kind: str) -> bytes:
     """Resize to max dimension and re-encode as WebP. Returns compressed bytes."""
-    from PIL import Image
+    from PIL import Image, ImageOps
 
     img = Image.open(io.BytesIO(data))
+    # Bake EXIF orientation into the pixels before we drop the metadata on re-encode —
+    # otherwise phone photos (Orientation=6/8) get saved sideways as WebP carries no tag.
+    img = ImageOps.exif_transpose(img)
     # Preserve alpha channel (PNG); everything else → RGB.
     img = img.convert("RGBA" if img.mode in ("RGBA", "LA", "PA") else "RGB")
     max_px = _MAX_PX.get(kind, 800)
