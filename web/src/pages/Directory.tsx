@@ -1,8 +1,8 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Crosshair, Search } from "lucide-react";
-import type { Discover, Link, PlatformPill } from "../api";
-import { useAllDiscover, useToggleSubscribeAll } from "../hooks/queries";
+import type { Discover, Link, MosaicTile as MosaicRow, PlatformPill } from "../api";
+import { useAllDiscover, useMosaic, useToggleSubscribeAll } from "../hooks/queries";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -17,12 +17,15 @@ type View = "mosaic" | "list";
 export function Directory() {
   const [view, setView] = useState<View>("mosaic");
   const [query, setQuery] = useState("");
-  const { data, isError, isLoading } = useAllDiscover();
+  // The mosaic paints from a one-request manifest; the list's richer rows (bio, pills,
+  // subscribe state) page through /discover — but only once the list view is opened.
+  const mosaic = useMosaic();
+  const list = useAllDiscover(view === "list");
   const toggle = useToggleSubscribeAll();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const members = data ?? [];
+  const members = list.data ?? [];
 
   // Only the row whose mutation is in flight is "pending" — a shared toggle.isPending would
   // dim every Subscribe button at once.
@@ -76,12 +79,18 @@ export function Directory() {
       </header>
 
       <div className="min-h-0 flex-1">
-        {isError ? (
+        {view === "mosaic" ? (
+          mosaic.isError ? (
+            <CenterNote>Couldn't load the directory. Try again.</CenterNote>
+          ) : mosaic.isLoading ? (
+            <CenterNote>Loading the mosaic…</CenterNote>
+          ) : (
+            <Mosaic tiles={mosaic.data ?? []} onOpen={openProfile} />
+          )
+        ) : list.isError ? (
           <CenterNote>Couldn't load the directory. Try again.</CenterNote>
-        ) : isLoading ? (
-          <CenterNote>Loading the mosaic…</CenterNote>
-        ) : view === "mosaic" ? (
-          <Mosaic members={members} onOpen={openProfile} />
+        ) : list.isLoading ? (
+          <CenterNote>Loading the directory…</CenterNote>
         ) : (
           <ListView
             members={members}
@@ -107,12 +116,22 @@ function CenterNote({ children }: { children: React.ReactNode }) {
 // ----------------------------------------------------------------------------------------
 // Mosaic: a drag-to-pan canvas. Real-photo tiles cluster at the centre (assigned the first
 // spiral cells); initials-only tiles ring outward.
+//
+// Every tile mounts immediately (gradient + initials are pure CSS), but profile photos
+// hydrate lazily: a trickle scheduler mounts <img>s in small batches, nearest to the
+// current viewport centre first, and re-prioritizes as the user pans. Only tiles within
+// HYDRATE_REACH viewports of the centre load at all, so roaming — not mounting — is what
+// pulls in the far edges of the wall.
 // ----------------------------------------------------------------------------------------
+const HYDRATE_BATCH = 24; // images mounted per tick — fills a desktop viewport in a few ticks
+const HYDRATE_TICK_MS = 90;
+const HYDRATE_REACH = 1.25; // load radius, in viewport-max-dimensions from the view centre
+
 function Mosaic({
-  members,
+  tiles,
   onOpen,
 }: {
-  members: Discover[];
+  tiles: MosaicRow[];
   onOpen: (username: string) => void;
 }) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -124,26 +143,70 @@ function Mosaic({
   const recentMoves = useRef<{ x: number; y: number; t: number }[]>([]);
   const [dragging, setDragging] = useState(false);
   const [centered, setCentered] = useState(false);
+  // user_ids whose photo is mounted. Grows monotonically — once loaded, an image stays.
+  const [hydrated, setHydrated] = useState<ReadonlySet<number>>(() => new Set<number>());
+  const hydratedRef = useRef(hydrated);
+  hydratedRef.current = hydrated;
+  const hydrateTimer = useRef<number | null>(null);
 
   // Real-photo members first → they take the innermost spiral cells.
   const placed = useMemo(() => {
-    const sorted = [...members].sort(
+    const sorted = [...tiles].sort(
       (a, b) => Number(!!b.profile_image_url) - Number(!!a.profile_image_url)
     );
     const cells = spiral(sorted.length);
     let extent = 0;
-    const tiles = sorted.map((m, i) => {
+    const placedTiles = sorted.map((m, i) => {
       const px = cells[i].x;
       const py = cells[i].y;
       extent = Math.max(extent, Math.abs(px), Math.abs(py));
       return { m, px, py };
     });
-    return { tiles, extent: extent + TILE };
-  }, [members]);
+    return { tiles: placedTiles, extent: extent + TILE };
+  }, [tiles]);
+
+  // Only tiles with a photo cost network — the hydration queue ignores the rest.
+  const photoTiles = useMemo(
+    () => placed.tiles.filter((t) => t.m.profile_image_url),
+    [placed]
+  );
+
+  // Mount the next batch of photos, nearest to the current view centre first. Reschedules
+  // itself until everything within reach is in; panning re-runs it against the new centre.
+  function hydratePass() {
+    hydrateTimer.current = null;
+    const vp = viewportRef.current;
+    if (!vp) return;
+    // Viewport centre in canvas coordinates (the canvas is translated by `offset`).
+    const cx = vp.clientWidth / 2 - offset.current.x;
+    const cy = vp.clientHeight / 2 - offset.current.y;
+    const reach = Math.max(vp.clientWidth, vp.clientHeight) * HYDRATE_REACH;
+    const due = photoTiles
+      .filter((t) => !hydratedRef.current.has(t.m.user_id))
+      .map((t) => ({ id: t.m.user_id, d: Math.hypot(t.px - cx, t.py - cy) }))
+      .filter((t) => t.d <= reach)
+      .sort((a, b) => a.d - b.d)
+      .slice(0, HYDRATE_BATCH);
+    if (due.length === 0) return;
+    setHydrated((prev) => {
+      const next = new Set(prev);
+      for (const t of due) next.add(t.id);
+      return next;
+    });
+    scheduleHydrate();
+  }
+
+  function scheduleHydrate() {
+    if (hydrateTimer.current !== null) return;
+    hydrateTimer.current = window.setTimeout(hydratePass, HYDRATE_TICK_MS);
+  }
 
   function applyTransform() {
     const cv = canvasRef.current;
     if (cv) cv.style.transform = `translate3d(${offset.current.x}px, ${offset.current.y}px, 0)`;
+    // Every pan path funnels through here, so this is the one hook needed to keep the
+    // hydration queue pointed at wherever the user is looking.
+    scheduleHydrate();
   }
 
   function clamp(x: number, y: number) {
@@ -161,12 +224,14 @@ function Mosaic({
     };
   }
 
-  // Centre the spiral origin in the viewport on first layout.
+  // Centre the spiral origin in the viewport on first layout, then hydrate the first
+  // wave of photos immediately (the scheduler takes over from there).
   useEffect(() => {
     const vp = viewportRef.current;
     if (!vp || centered) return;
     offset.current = { x: vp.clientWidth / 2, y: vp.clientHeight / 2 };
     applyTransform();
+    hydratePass();
     setCentered(true);
   }, [centered, placed]);
 
@@ -251,6 +316,7 @@ function Mosaic({
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
       cancelMomentum();
+      if (hydrateTimer.current !== null) window.clearTimeout(hydrateTimer.current);
     },
     []
   );
@@ -262,7 +328,16 @@ function Mosaic({
     applyTransform();
   }
 
-  if (members.length === 0)
+  // Stable callback (drag-vs-tap check lives here) so memoized tiles never re-render
+  // just because a hydration batch landed elsewhere on the wall.
+  const handleOpen = useCallback(
+    (username: string) => {
+      if (!moved.current) onOpen(username);
+    },
+    [onOpen]
+  );
+
+  if (tiles.length === 0)
     return <CenterNote>No one to show yet.</CenterNote>;
 
   return (
@@ -274,14 +349,13 @@ function Mosaic({
     >
       <div ref={canvasRef} className="mosaic-canvas absolute left-0 top-0 h-0 w-0">
         {placed.tiles.map(({ m, px, py }) => (
-          <MosaicTile
+          <MosaicTileView
             key={m.user_id}
-            row={m}
+            tile={m}
             left={px - TILE / 2}
             top={py - TILE / 2}
-            onOpen={() => {
-              if (!moved.current) onOpen(m.username);
-            }}
+            showImage={hydrated.has(m.user_id)}
+            onOpen={handleOpen}
           />
         ))}
       </div>
@@ -300,28 +374,26 @@ function Mosaic({
   );
 }
 
-function MosaicTile({
-  row,
+const MosaicTileView = memo(function MosaicTileView({
+  tile,
   left,
   top,
+  showImage,
   onOpen,
 }: {
-  row: Discover;
+  tile: MosaicRow;
   left: number;
   top: number;
-  onOpen: () => void;
+  showImage: boolean; // hydration gate — the photo only mounts once the scheduler says so
+  onOpen: (username: string) => void;
 }) {
-  const name = row.display_name ?? "Unnamed";
-  // Pre-seeded ghosts: no links at all (neither feeder sources nor profile links) and never
-  // registered (unverified inbox). Fade these so live members read as the foreground.
-  const isPlaceholder =
-    !row.verified && row.links.length === 0 && row.platforms.length === 0;
+  const name = tile.display_name ?? "Unnamed";
   return (
     <button
       type="button"
-      onClick={onOpen}
+      onClick={() => onOpen(tile.username)}
       className={`mosaic-tile absolute overflow-hidden rounded-md border border-border text-left shadow-sm${
-        isPlaceholder ? " opacity-50" : ""
+        tile.placeholder ? " opacity-50" : ""
       }`}
       style={{ left, top, width: TILE, height: TILE }}
     >
@@ -329,15 +401,16 @@ function MosaicTile({
           overlays them; if it fails to load, onError hides the <img> and they show through. */}
       <span
         className="flex h-full w-full items-center justify-center font-mono text-xl font-semibold text-ink/45"
-        style={{ background: generatedTileBackground(row.username) }}
+        style={{ background: generatedTileBackground(tile.username) }}
       >
-        {initialsOf(row.display_name, row.username)}
+        {initialsOf(tile.display_name, tile.username)}
       </span>
-      {row.profile_image_url && (
+      {tile.profile_image_url && showImage && (
         <img
-          src={row.profile_image_url}
+          src={tile.profile_image_url}
           alt=""
           draggable={false}
+          decoding="async"
           className="absolute inset-0 h-full w-full object-cover"
           onError={(e) => {
             e.currentTarget.style.display = "none";
@@ -351,7 +424,7 @@ function MosaicTile({
       </span>
     </button>
   );
-}
+});
 
 // ----------------------------------------------------------------------------------------
 // List: searchable, scannable rows.

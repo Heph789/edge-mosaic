@@ -12,6 +12,9 @@ import { api, type Discover, type ImageKind, type MePatch, type User } from "../
 // Mirrors DISCOVER_PAGE_SIZE in api/app/routers/discover.py — a full page implies there
 // may be more, so we ask for the next one.
 const DISCOVER_PAGE_SIZE = 24;
+// When slurping the whole directory for the list view, use the server's MAX_PAGE_SIZE to
+// minimize sequential round trips.
+const DISCOVER_ALL_PAGE_SIZE = 100;
 
 const keys = {
   sources: ["sources"] as const,
@@ -19,6 +22,7 @@ const keys = {
   digestPreview: ["digest-preview"] as const,
   discover: (q: string) => ["discover", q] as const,
   discoverAll: ["discover-all"] as const,
+  mosaic: ["discover-mosaic"] as const,
 };
 
 // --- queries --------------------------------------------------------------------------
@@ -51,21 +55,29 @@ export function useDiscover(q: string) {
   });
 }
 
-// Load the WHOLE directory in one shot for the mosaic (and client-side list filtering).
-// The mosaic lays everyone out at once, so we page through /discover to exhaustion rather
-// than lazy-loading. Fine at the current scale (mid-hundreds); revisit if it grows.
-export function useAllDiscover() {
+// The whole-directory mosaic manifest: one request, minimal fields. This is what the
+// mosaic paints from; profile photos hydrate lazily per tile as the user roams.
+export function useMosaic() {
+  return useQuery({ queryKey: keys.mosaic, queryFn: api.discoverMosaic });
+}
+
+// Load the WHOLE directory for the list view's client-side filtering. Pages through
+// /discover to exhaustion at the server's max page size. Gated behind `enabled` so the
+// default (mosaic) view never pays for it. Fine at the current scale (high-hundreds);
+// revisit if it grows.
+export function useAllDiscover(enabled = true) {
   return useQuery({
     queryKey: keys.discoverAll,
+    enabled,
     queryFn: async () => {
       const all: Discover[] = [];
       let offset = 0;
       // Guard against an unbounded loop if the API ever misbehaves.
       for (let guard = 0; guard < 200; guard++) {
-        const page = await api.discover("", offset);
+        const page = await api.discover("", offset, DISCOVER_ALL_PAGE_SIZE);
         all.push(...page);
-        if (page.length < DISCOVER_PAGE_SIZE) break;
-        offset += DISCOVER_PAGE_SIZE;
+        if (page.length < DISCOVER_ALL_PAGE_SIZE) break;
+        offset += DISCOVER_ALL_PAGE_SIZE;
       }
       return all;
     },

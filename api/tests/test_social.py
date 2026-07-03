@@ -101,6 +101,45 @@ def test_discover_is_subscribed_flag_and_platforms(client, db, make_user, auth):
     assert hit["platforms"] == [{"label": "Blog", "url": "https://rss.ex"}]
 
 
+def test_discover_mosaic_manifest(client, db, make_user, auth):
+    ann = make_user("a@example.com", "Ann A.")
+    bob = make_user("b@example.com", "Bob Builder")
+    _add_source(db, bob.id, "rss")
+    make_user("n@example.com", display_name=None)  # no display_name → excluded
+
+    rows = client.get("/discover/mosaic", headers=auth(ann)).json()
+    by_name = {r["display_name"]: r for r in rows}
+    assert set(by_name) == {"Ann A.", "Bob Builder"}
+
+    # Minimal manifest shape — no pills/links/is_subscribed hydration.
+    assert set(rows[0]) == {
+        "user_id",
+        "username",
+        "display_name",
+        "profile_image_url",
+        "placeholder",
+    }
+    # Same rank order as /discover: the feeder comes first.
+    assert rows[0]["display_name"] == "Bob Builder"
+    # Ghost with nothing attached is a placeholder; the feeder is not.
+    assert by_name["Ann A."]["placeholder"] is True
+    assert by_name["Bob Builder"]["placeholder"] is False
+
+
+def test_discover_mosaic_hides_village_only_strangers(client, make_user, auth):
+    me = make_user("me@example.com", "Me")
+    make_user("v@example.com", "Villager", visibility="village")
+    make_user("o@example.com", "Opener", visibility="community")
+
+    names = {
+        r["display_name"]
+        for r in client.get("/discover/mosaic", headers=auth(me)).json()
+    }
+    # No shared village → the village-only profile is hidden; community is visible.
+    assert "Opener" in names
+    assert "Villager" not in names
+
+
 def test_discover_escapes_like_wildcards(client, db, make_user, auth):
     searcher = make_user("s@example.com", "Searcher")
     make_user("a@example.com", "50% Off Deals")

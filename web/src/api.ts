@@ -110,6 +110,15 @@ export type Discover = {
   verified: boolean; // proven-inbox at least once; false = pre-seeded ghost, not yet registered
 };
 
+// Minimal manifest row for the mosaic wall — the whole directory ships in one response.
+export type MosaicTile = {
+  user_id: number;
+  username: string; // gradient seed + profile route
+  display_name: string | null;
+  profile_image_url: string | null;
+  placeholder: boolean; // pre-seeded ghost with nothing attached yet — dimmed in the mosaic
+};
+
 export type DigestItem = {
   title: string | null;
   url: string;
@@ -262,10 +271,13 @@ export const api = {
   listSubscriptions: () => request<Subscription[]>("/subscriptions"),
 
   // --- discover ---
-  discover: (q: string, offset = 0) =>
+  discover: (q: string, offset = 0, limit?: number) =>
     request<Discover[]>(
-      `/discover?q=${encodeURIComponent(q)}&offset=${offset}`
+      `/discover?q=${encodeURIComponent(q)}&offset=${offset}${
+        limit != null ? `&limit=${limit}` : ""
+      }`
     ),
+  discoverMosaic: () => request<MosaicTile[]>("/discover/mosaic"),
 
   // --- digest preview ---
   digestPreview: () => request<DigestPreview>("/me/digest/preview"),

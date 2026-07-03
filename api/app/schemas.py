@@ -249,6 +249,20 @@ class DiscoverOut(BaseModel):
     verified: bool  # proven-inbox at least once; False = pre-seeded ghost, not yet registered
 
 
+class MosaicTileOut(BaseModel):
+    """Minimal per-user manifest row for the mosaic wall — just what a tile renders.
+
+    The whole directory ships in one response, so this deliberately skips the pills /
+    links / is_subscribed hydration that makes DiscoverOut expensive per row.
+    """
+
+    user_id: int
+    username: str  # gradient seed + profile route
+    display_name: str | None
+    profile_image_url: str | None
+    placeholder: bool  # pre-seeded ghost with nothing attached yet — dimmed in the mosaic
+
+
 # --- digest preview -------------------------------------------------------------------
 class DigestItemOut(BaseModel):
     title: str | None
