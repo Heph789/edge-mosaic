@@ -33,6 +33,65 @@ TWEETS_RESP = {
 
 EMPTY_RESP = {"meta": {"result_count": 0}}
 
+# X's exclude=replies drops replies to *others* but not self-replies (threads), which come back
+# with in_reply_to_user_id == the author's own id. This page mixes a self-reply (newest), a
+# reply-to-other that somehow leaked, a quote tweet (top-level, kept), and a plain post.
+AUTHOR_ID = "44196397"
+TWEETS_WITH_REPLIES_RESP = {
+    "data": [
+        {
+            "id": "1004",
+            "text": "@ggraham continuing my own thread",
+            "created_at": "2026-06-22T10:00:00.000Z",
+            "public_metrics": {"like_count": 1, "retweet_count": 0},
+            "in_reply_to_user_id": AUTHOR_ID,  # self-reply — must be dropped
+        },
+        {
+            "id": "1003",
+            "text": "@someone reply to another user",
+            "created_at": "2026-06-21T10:00:00.000Z",
+            "public_metrics": {"like_count": 1, "retweet_count": 0},
+            "in_reply_to_user_id": "99999",  # reply to other — must be dropped
+        },
+        {
+            "id": "1002",
+            "text": "quote-tweeting something worth sharing",
+            "created_at": "2026-06-20T10:00:00.000Z",
+            "public_metrics": {"like_count": 5, "retweet_count": 2},
+            # quote tweet: no in_reply_to_user_id — top-level, kept
+        },
+        {
+            "id": "1001",
+            "text": "plain top-level post",
+            "created_at": "2026-06-19T10:00:00.000Z",
+            "public_metrics": {"like_count": 3, "retweet_count": 0},
+        },
+    ],
+    "meta": {"newest_id": "1004", "oldest_id": "1001", "result_count": 4},
+}
+
+
+def test_self_replies_are_filtered_but_cursor_advances(monkeypatch):
+    """Replies (self or other) are dropped; quote tweets + plain posts survive. The cursor still
+    advances to the API's newest_id even though that newest tweet was a filtered self-reply."""
+    seen_params: list[dict] = []
+
+    def handler(request):
+        seen_params.append(dict(request.url.params))
+        return httpx.Response(200, json=TWEETS_WITH_REPLIES_RESP)
+
+    source = Source(
+        type="x", input_url="https://x.com/jack", external_id=AUTHOR_ID, cursor="1000"
+    )
+    items = _adapter(monkeypatch, handler).fetch(source)
+
+    # Only the two non-replies remain, in returned order.
+    assert [i.external_id for i in items] == ["1002", "1001"]
+    # We asked X for the reply field so we can filter on it.
+    assert "in_reply_to_user_id" in seen_params[0]["tweet.fields"]
+    # Cursor advanced past the dropped self-reply — it won't be re-fetched next run.
+    assert source.cursor == "1004"
+
 
 def _adapter(monkeypatch, handler, token="test-token"):
     """Real XAdapter wired to a mock transport, with a deterministic token."""

@@ -58,8 +58,13 @@ class XAdapter:
 
         params = {
             "max_results": X_FEED_LIMIT,
+            # `exclude=replies` drops replies to *other* users server-side (cheaper: fewer posts
+            # billed/paged), but X does NOT exclude a user's *self-replies* — their own threads
+            # come back with in_reply_to_user_id == the author's id. We request that field and
+            # filter every reply out below, so only genuine top-level posts survive. (Quote
+            # tweets have in_reply_to_user_id == null and are kept — they are top-level.)
             "exclude": "replies,retweets",
-            "tweet.fields": "created_at,public_metrics",
+            "tweet.fields": "created_at,public_metrics,in_reply_to_user_id",
         }
         if source.cursor:
             params["since_id"] = source.cursor  # only tweets newer than the high-water mark
@@ -67,13 +72,16 @@ class XAdapter:
         payload = self._get(f"/users/{user_id}/tweets", params)
         tweets = payload.get("data") or []
 
-        # Advance the high-water mark so the next scrape reads only what's newer still. Present
-        # only when this pull returned tweets; an empty result leaves the cursor untouched.
+        # Advance the high-water mark so the next scrape reads only what's newer still. Uses the
+        # API's newest_id (the newest id X *returned*, pre-filter) so a dropped self-reply at the
+        # top still moves the cursor past it — we never re-fetch it. Present only when this pull
+        # returned tweets; an empty result leaves the cursor untouched.
         newest_id = (payload.get("meta") or {}).get("newest_id")
         if newest_id:
             source.cursor = newest_id
 
-        return [self._normalize(tweet, handle) for tweet in tweets]
+        top_level = [t for t in tweets if not t.get("in_reply_to_user_id")]
+        return [self._normalize(tweet, handle) for tweet in top_level]
 
     # -- helpers --------------------------------------------------------------
 
