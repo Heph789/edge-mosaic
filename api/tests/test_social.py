@@ -51,7 +51,7 @@ def test_subscribe_unknown_feeder_404(client, make_user, auth):
     assert r.status_code == 404
 
 
-def test_subscription_list_has_platforms(client, db, make_user, auth):
+def test_subscription_list_has_platform_pills(client, db, make_user, auth):
     ann = make_user("a@example.com", "Ann A.")
     bob = make_user("b@example.com", "Bob B.")
     _add_source(db, bob.id, "rss")
@@ -60,9 +60,18 @@ def test_subscription_list_has_platforms(client, db, make_user, auth):
     client.post("/subscriptions", json={"feeder_id": bob.id}, headers=h)
 
     listed = client.get("/subscriptions", headers=h).json()
-    # platforms are granular display labels now: rss(https://rss.ex) → "Blog", bluesky → "Bluesky".
+    # Pills carry a linkable URL now: rss(https://rss.ex) → "Blog", bluesky → "Bluesky".
+    # username links the row to the feeder's profile page.
     assert listed == [
-        {"feeder_id": bob.id, "display_name": "Bob B.", "platforms": ["Blog", "Bluesky"]}
+        {
+            "feeder_id": bob.id,
+            "username": bob.username,
+            "display_name": "Bob B.",
+            "platforms": [
+                {"label": "Blog", "url": "https://rss.ex"},
+                {"label": "Bluesky", "url": "https://bluesky.ex"},
+            ],
+        }
     ]
 
 

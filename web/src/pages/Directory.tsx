@@ -503,21 +503,3 @@ export function Pills({
     </div>
   );
 }
-
-// Static platform pills (no links) — used by the Digest tab's subscription list.
-export function Platforms({ platforms }: { platforms: string[] }) {
-  if (platforms.length === 0)
-    return <span className="text-sm text-muted-foreground">no sources yet</span>;
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {platforms.map((p) => (
-        <span
-          key={p}
-          className={cn(pillClass, "border-border bg-secondary text-muted-foreground")}
-        >
-          {p}
-        </span>
-      ))}
-    </div>
-  );
-}

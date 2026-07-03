@@ -221,18 +221,19 @@ class SubscribeIn(BaseModel):
     feeder_id: int
 
 
-class SubscriptionOut(BaseModel):
-    feeder_id: int
-    display_name: str | None
-    platforms: list[str]
-
-
 class PlatformPillOut(BaseModel):
     """A directory card pill: a platform label that links out to the feeder's first source
     of that platform."""
 
     label: str  # Substack/YouTube/Podcast/…
     url: str  # the first source of that platform (the pill's link target)
+
+
+class SubscriptionOut(BaseModel):
+    feeder_id: int
+    username: str  # links the row to the feeder's profile (/p/{username})
+    display_name: str | None
+    platforms: list[PlatformPillOut]  # feeder-source pills, each links out
 
 
 class DiscoverOut(BaseModel):

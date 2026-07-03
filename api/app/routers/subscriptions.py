@@ -7,8 +7,8 @@ from sqlalchemy import select
 
 from ..deps import CurrentUser, DbDep
 from ..models import Subscription, User
-from ..schemas import SubscribeIn, SubscriptionOut
-from ..sources import platforms_for
+from ..schemas import PlatformPillOut, SubscribeIn, SubscriptionOut
+from ..sources import platform_pills_for
 
 router = APIRouter(tags=["subscriptions"])
 
@@ -29,9 +29,12 @@ def subscribe(body: SubscribeIn, user: CurrentUser, db: DbDep) -> SubscriptionOu
         db.add(Subscription(subscriber_id=user.id, feeder_id=feeder.id))
         db.commit()
 
-    platforms = platforms_for(db, [feeder.id]).get(feeder.id, [])
+    pills = platform_pills_for(db, [feeder.id]).get(feeder.id, [])
     return SubscriptionOut(
-        feeder_id=feeder.id, display_name=feeder.display_name, platforms=platforms
+        feeder_id=feeder.id,
+        username=feeder.username,
+        display_name=feeder.display_name,
+        platforms=[PlatformPillOut(label=label, url=url) for label, url in pills],
     )
 
 
@@ -51,15 +54,21 @@ def unsubscribe(feeder_id: int, user: CurrentUser, db: DbDep) -> Response:
 @router.get("/subscriptions", response_model=list[SubscriptionOut])
 def list_subscriptions(user: CurrentUser, db: DbDep) -> list[SubscriptionOut]:
     rows = db.execute(
-        select(User.id, User.display_name)
+        select(User.id, User.username, User.display_name)
         .join(Subscription, Subscription.feeder_id == User.id)
         .where(Subscription.subscriber_id == user.id)
         .order_by(User.display_name)
     ).all()
-    platforms = platforms_for(db, [fid for fid, _ in rows])
+    pills = platform_pills_for(db, [fid for fid, _, _ in rows])
     return [
         SubscriptionOut(
-            feeder_id=fid, display_name=name, platforms=platforms.get(fid, [])
+            feeder_id=fid,
+            username=username,
+            display_name=name,
+            platforms=[
+                PlatformPillOut(label=label, url=url)
+                for label, url in pills.get(fid, [])
+            ],
         )
-        for fid, name in rows
+        for fid, username, name in rows
     ]

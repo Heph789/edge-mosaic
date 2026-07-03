@@ -92,8 +92,9 @@ export type Source = {
 
 export type Subscription = {
   feeder_id: number;
+  username: string; // links the row to the feeder's profile (/p/{username})
   display_name: string | null;
-  platforms: string[];
+  platforms: PlatformPill[]; // feeder-source pills, each links out
 };
 
 export type Discover = {
