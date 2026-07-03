@@ -39,6 +39,7 @@ from .config import API_DIR
 from .models import VISIBILITY_VILLAGE, AllowedEmail, ProfileLink, Source, User
 from .seed_notable import FEEDER_LABELS
 from .sources import SourceRejected, detect_type
+from .usernames import is_available
 from .villages import assign_default_village
 
 SPEAKER_PATH = (
@@ -82,6 +83,7 @@ class SpeakerStats:
     filled: int = 0  # existing content-less ghost populated as a speaker
     flagged_only: int = 0  # existing ghost already had content — only ensured speaker flag
     skipped_verified: int = 0  # matched a real (verified) user — left untouched
+    skipped_name_collision: int = 0  # email-less entry shadowed a real emailed user — not created
     notables_flagged: int = 0  # is_notable rows set speaker=true (backfill)
     email_not_allowlisted: int = 0  # roster email absent from allowed_emails — seeded email-less
     sources_added: int = 0
@@ -112,6 +114,36 @@ def _email_allowlisted(session: Session, email: str) -> bool:
     return (
         session.scalar(select(AllowedEmail.email).where(AllowedEmail.email == email))
         is not None
+    )
+
+
+def _placeholder_username(session: Session, user_id: int) -> str:
+    """The `user-{id}` placeholder, made collision-safe. Normally the id-aligned slug is free
+    and returned as-is (preserving the `user-N == id` convention). But a DB whose id-space was
+    rebuilt/mirrored can carry a *stale* `user-N` handle on some other row (e.g. a real user at
+    id 636 still holding `user-697`); marching new ids through N would then hit a UNIQUE
+    violation on users.username. When that happens, fall back to a suffixed slug so the seed
+    can't be wedged by pre-existing username drift."""
+    base = f"user-{user_id}"
+    if is_available(session, base, exclude_id=user_id):
+        return base
+    suffix = 2
+    while not is_available(session, f"{base}-{suffix}", exclude_id=user_id):
+        suffix += 1
+    return f"{base}-{suffix}"
+
+
+def _real_emailed_user_with_name(session: Session, name: str) -> User | None:
+    """A user with this display_name who owns an email — i.e. a real/claimable account (a
+    verified sign-up or an allowlist pre-seed). The email-less branch of `_find_user` skips
+    these on purpose (a shared name mustn't hijack a real inbox), so an email-less roster entry
+    for the *same* person — one whose name→email match we missed — would otherwise create a
+    duplicate ghost shadowing them. This lets the caller detect that and skip+warn instead."""
+    return session.scalar(
+        select(User)
+        .where(User.display_name == name, User.email.is_not(None))
+        .order_by(User.id)
+        .limit(1)
     )
 
 
@@ -186,6 +218,21 @@ def seed_speakers(session: Session, path: Path | None = None) -> SpeakerStats:
             continue
 
         if user is None:
+            # Safety net: an email-less entry about to be created as a fresh ghost, while a real
+            # emailed user already holds this exact display_name, almost always means we failed to
+            # capture this person's email (see match_speaker_emails.py) — creating would duplicate
+            # them. Skip and surface it for a human rather than polluting the directory. (When the
+            # entry HAS an email we don't guard: that's a legitimate new tie, and a same-named real
+            # user would be a genuinely different person.)
+            if email is None:
+                shadowed = _real_emailed_user_with_name(session, spec.name)
+                if shadowed is not None:
+                    stats.skipped_name_collision += 1
+                    stats.warnings.append(
+                        f"{spec.name}: email-less entry shadows real user {shadowed.email} "
+                        f"(id {shadowed.id}) — skipped to avoid a duplicate; fix the name→email match"
+                    )
+                    continue
             user = User(
                 email=email,
                 display_name=spec.name,
@@ -194,7 +241,7 @@ def seed_speakers(session: Session, path: Path | None = None) -> SpeakerStats:
             )
             session.add(user)
             session.flush()  # assign id for username + links
-            user.username = f"user-{user.id}"
+            user.username = _placeholder_username(session, user.id)
             assign_default_village(session, user)
             _add_links(session, user, spec, stats)
             stats.created += 1

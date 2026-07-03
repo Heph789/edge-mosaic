@@ -107,7 +107,8 @@ def cmd_seed_speakers(json_arg: str | None) -> int:
     print(
         f"  {stats.created} created ({stats.created_with_email} tied to allowlist email), "
         f"{stats.filled} filled, {stats.flagged_only} flag-only, "
-        f"{stats.skipped_verified} skipped (verified)"
+        f"{stats.skipped_verified} skipped (verified), "
+        f"{stats.skipped_name_collision} skipped (name collision)"
     )
     print(f"  {stats.notables_flagged} notables flagged speaker=true (backfill)")
     print(f"  {stats.sources_added} sources added, {stats.links_added} links added "
