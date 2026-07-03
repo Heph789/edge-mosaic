@@ -362,12 +362,12 @@ function Mosaic({
       <button
         type="button"
         onClick={recenter}
-        className="absolute bottom-10 right-4 flex items-center gap-1.5 rounded-full border border-border bg-card/90 px-3 py-1.5 font-mono text-[11px] text-faint shadow-sm backdrop-blur-sm transition-colors hover:text-foreground"
+        className="absolute bottom-10 right-4 flex items-center gap-1.5 rounded-full border border-border bg-card/90 px-3 py-1.5 font-mono text-[11px] lg:text-[13px] text-faint shadow-sm backdrop-blur-sm transition-colors hover:text-foreground"
       >
         <Crosshair className="size-3.5" />
         Center
       </button>
-      <div className="mosaic-hint pointer-events-none absolute inset-x-0 bottom-3 text-center font-mono text-[11px] text-faint">
+      <div className="mosaic-hint pointer-events-none absolute inset-x-0 bottom-3 text-center font-mono text-[11px] lg:text-[13px] text-faint">
         drag to roam · tap a tile to open
       </div>
     </div>
@@ -418,7 +418,7 @@ const MosaicTileView = memo(function MosaicTileView({
         />
       )}
       <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/85 to-transparent px-2 pb-1.5 pt-5">
-        <span className="block truncate text-[13px] font-semibold leading-tight text-white">
+        <span className="block truncate text-[13px] lg:text-[16px] font-semibold leading-tight text-white">
           {name}
         </span>
       </span>
@@ -503,7 +503,7 @@ const ListRow = memo(function ListRow({
             <div>
               <span className="font-semibold leading-tight">{name}</span>
               {row.city && (
-                <p className="font-mono text-[11px] text-faint">{row.city}</p>
+                <p className="font-mono text-[11px] lg:text-[13px] text-faint">{row.city}</p>
               )}
             </div>
             {row.bio && (
@@ -530,7 +530,7 @@ const ListRow = memo(function ListRow({
 // Pills — feeder-source pills (link out) + non-feeder profile links.
 // ----------------------------------------------------------------------------------------
 const pillClass =
-  "inline-flex items-center rounded-full border px-2.5 py-1 font-mono text-[11px] transition-colors";
+  "inline-flex items-center rounded-full border px-2.5 py-1 font-mono text-[11px] lg:text-[13px] transition-colors";
 
 export function Pills({
   platforms,

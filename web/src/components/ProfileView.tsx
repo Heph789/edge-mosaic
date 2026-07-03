@@ -1,11 +1,11 @@
 // Shared read-only rendering of a public profile, used by the standalone /p/{username}
 // page. Kept here (not in Directory) so it has no dependency back on the Directory page.
 import type { ProfileSource, PublicProfile } from "../api";
-import { UnverifiedBadge } from "./UnverifiedBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { SubscribeButton } from "@/components/SubscribeButton";
 import { UnclaimedNotice } from "@/components/UnclaimedNotice";
 import { initialsOf } from "@/lib/mosaic";
+import { splitSources } from "@/lib/sources";
 
 export function Avatar60({ url, name, handle }: { url: string | null; name: string | null; handle: string }) {
   return (
@@ -25,6 +25,9 @@ export function ProfileView({
   pending: boolean;
   onToggleFollow: (subscribe: boolean) => void;
 }) {
+  const { feeds, unscrapableLinks } = splitSources(p.sources);
+  const links = [...p.links, ...unscrapableLinks];
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-start gap-4">
@@ -43,21 +46,21 @@ export function ProfileView({
       {!p.verified ? (
         <UnclaimedNotice name={p.display_name} canClaim={!p.has_email} />
       ) : p.bio ? (
-        <p className="text-[15px] leading-relaxed text-foreground/85">{p.bio}</p>
+        <p className="text-[15px] lg:text-[18px] leading-relaxed text-foreground/85">{p.bio}</p>
       ) : null}
 
-      <SourceLinks sources={p.sources} />
+      <SourceLinks sources={feeds} />
 
-      {p.links.length > 0 && (
+      {links.length > 0 && (
         <Section label="Links">
           <div className="flex flex-wrap gap-1.5">
-            {p.links.map((l, i) => (
+            {links.map((l, i) => (
               <a
                 key={i}
                 href={l.url}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="rounded-full border border-border px-2.5 py-1 font-mono text-[11px] text-muted-foreground transition-colors hover:border-marigold hover:text-foreground"
+                className="rounded-full border border-border px-2.5 py-1 font-mono text-[11px] lg:text-[13px] text-muted-foreground transition-colors hover:border-marigold hover:text-foreground"
               >
                 {l.label}
               </a>
@@ -90,7 +93,7 @@ export function ProfileView({
 
       <SubscribeButton
         className="self-start"
-        hasFeeders={p.sources.length > 0}
+        hasFeeders={feeds.length > 0}
         isSubscribed={p.is_subscribed}
         pending={pending}
         onToggle={onToggleFollow}
@@ -103,7 +106,7 @@ export function ProfileView({
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.12em] text-faint">
+      <p className="mb-2 font-mono text-[10px] lg:text-[12px] uppercase tracking-[0.12em] text-faint">
         {label}
       </p>
       {children}
@@ -111,8 +114,8 @@ function Section({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
-// The feeder's content feeds, as clickable links (labelled by pulled title, with a
-// platform pill). Falls back to a muted note when the feeder has no sources.
+// The feeder's scrapable content feeds, as clickable links (labelled by pulled title, with
+// a platform pill). Falls back to a muted note when the feeder has no scrapable sources.
 function SourceLinks({ sources }: { sources: ProfileSource[] }) {
   if (sources.length === 0)
     return <span className="text-sm text-muted-foreground">no sources yet</span>;
@@ -129,10 +132,9 @@ function SourceLinks({ sources }: { sources: ProfileSource[] }) {
             >
               {s.title ?? s.url}
             </a>
-            <span className="shrink-0 rounded-full border border-border bg-secondary px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
+            <span className="shrink-0 rounded-full border border-border bg-secondary px-2 py-0.5 font-mono text-[10px] lg:text-[12px] text-muted-foreground">
               {s.label}
             </span>
-            {s.status === "unverified" && <UnverifiedBadge />}
           </li>
         ))}
       </ul>

@@ -40,7 +40,7 @@ export function Digest() {
     <div className="absolute inset-0 overflow-y-auto">
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-5">
         <header>
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-faint">
+          <p className="font-mono text-[10px] lg:text-[12px] uppercase tracking-[0.18em] text-faint">
             Edge Mosaic
           </p>
           <h1 className="font-display text-2xl font-bold tracking-tight">Digest</h1>

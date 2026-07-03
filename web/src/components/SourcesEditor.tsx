@@ -166,11 +166,11 @@ export function SourcesEditor({
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold">{s.title ?? s.input_url}</p>
                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                  <span className="rounded-full border border-border bg-secondary px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
+                  <span className="rounded-full border border-border bg-secondary px-2 py-0.5 font-mono text-[10px] lg:text-[12px] text-muted-foreground">
                     {s.label}
                   </span>
                   {s.status === "unverified" && <UnverifiedBadge />}
-                  <span className={cn("font-mono text-[10px] text-faint", s.title && "truncate max-w-[180px]")}>
+                  <span className={cn("font-mono text-[10px] lg:text-[12px] text-faint", s.title && "truncate max-w-[180px]")}>
                     {s.input_url}
                   </span>
                 </div>
