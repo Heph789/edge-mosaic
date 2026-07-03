@@ -207,6 +207,13 @@ EDGEOS_TIMEOUT = 10.0
 # Flip to route EVERYONE through the EdgeOS OTP flow, retiring the legacy magic-link path
 # for pre-EdgeOS email users ("strictly EdgeOS" end state).
 EDGEOS_ONLY_LOGIN = os.environ.get("EDGEOS_ONLY_LOGIN", "").lower() in ("1", "true", "yes")
+# Popups that map onto a village that existed BEFORE attendance-derived villages, so the
+# sync claims the existing row instead of minting a duplicate (e.g. the "Edge Esmeralda
+# 2026" popup is the pre-existing default village "EE '26"). Unlisted popups get their
+# own village, named after the popup, on first sight.
+EDGEOS_POPUP_VILLAGE_SLUGS = {
+    "43746fd0-bce2-472b-93e4-a438177b2dff": DEFAULT_VILLAGE_SLUG,  # Edge Esmeralda 2026
+}
 
 # --- Slice 4: cron + email (§5) -------------------------------------------------------
 # Email backend behind the send_email() seam. Default 'console' (no real delivery) so the

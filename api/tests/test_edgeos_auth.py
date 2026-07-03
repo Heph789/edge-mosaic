@@ -146,7 +146,8 @@ def test_verify_code_creates_user_with_profile_and_attendance(
     assert r.status_code == 200
     payload = r.json()
     assert payload["user"]["display_name"] == "Jane S."  # abbreviated, never full surname
-    assert payload["user"]["villages"] == ["EE '26"]  # backend-assigned default
+    # Villages are derived from attendance — one per popup, NOT the blanket default.
+    assert set(payload["user"]["villages"]) == {"Edge Esmeralda 2025", "Edge City Lanna"}
     assert payload["user"]["onboarded"] is False
     # Set-compare: NULL start_date sorts differently on SQLite vs Postgres.
     assert set(payload["user"]["edgeos_popups"]) == {
@@ -228,9 +229,16 @@ def test_repeat_login_resyncs_attendance_without_duplicates(client, db, monkeypa
     rows = list(db.scalars(select(EdgeosAttendance)))
     assert [r.popup_name for r in rows] == ["Edge Esmeralda 2025"]  # replaced, not appended
 
+    # Village memberships are additive-only: the Lanna grant survives the shrunk resync,
+    # and no membership row is duplicated.
+    user = db.scalar(select(User))
+    names = [uv.village.name for uv in user.villages]
+    assert sorted(names) == ["Edge City Lanna", "Edge Esmeralda 2025"]
+
 
 def test_verify_survives_enrichment_failure(client, db, monkeypatch):
-    """Profile/stats fetches are best-effort — login must still succeed without them."""
+    """Profile/stats fetches are best-effort — login must still succeed without them,
+    falling back to the default village so the user isn't left village-less."""
     _mock_edgeos(monkeypatch, profile=None, stats=None)
     r = client.post(
         "/auth/edgeos/verify", json={"email": "jane@example.com", "code": "123456"}
@@ -238,8 +246,54 @@ def test_verify_survives_enrichment_failure(client, db, monkeypatch):
     assert r.status_code == 200
     assert r.json()["user"]["display_name"] is None
     assert r.json()["user"]["edgeos_popups"] == []
+    assert r.json()["user"]["villages"] == ["EE '26"]  # fallback, not attendance-derived
     user = db.scalar(select(User))
     assert user.verified_at is not None and user.edgeos_human_id is None
+
+
+def test_aliased_popup_claims_preexisting_village(client, db, monkeypatch):
+    """A popup listed in EDGEOS_POPUP_VILLAGE_SLUGS enrolls into the pre-existing local
+    village (claiming it) instead of minting a duplicate."""
+    from app.models import Village
+
+    _mock_edgeos(monkeypatch)
+    db.add(Village(name="EE '26", slug="ee-26"))
+    db.commit()
+    monkeypatch.setattr(
+        "app.config.EDGEOS_POPUP_VILLAGE_SLUGS",
+        {STATS["popups"][0]["popup_id"]: "ee-26"},
+    )
+
+    r = client.post(
+        "/auth/edgeos/verify", json={"email": "jane@example.com", "code": "123456"}
+    )
+    assert r.status_code == 200
+    assert set(r.json()["user"]["villages"]) == {"EE '26", "Edge City Lanna"}
+
+    villages = list(db.scalars(select(Village)))
+    assert len(villages) == 2  # no "Edge Esmeralda 2025" duplicate minted
+    claimed = next(v for v in villages if v.slug == "ee-26")
+    assert claimed.edgeos_popup_id == STATS["popups"][0]["popup_id"]
+
+
+def test_unrelated_name_collision_gets_suffixed_village(client, db, monkeypatch):
+    """A local village that happens to share the popup's name is NOT hijacked — the
+    popup's village is created with a popup-id suffix."""
+    from app.models import Village
+
+    _mock_edgeos(monkeypatch)
+    db.add(Village(name="Edge City Lanna", slug="edge-city-lanna"))
+    db.commit()
+
+    r = client.post(
+        "/auth/edgeos/verify", json={"email": "jane@example.com", "code": "123456"}
+    )
+    assert r.status_code == 200
+
+    local = db.scalar(select(Village).where(Village.slug == "edge-city-lanna"))
+    assert local.edgeos_popup_id is None  # untouched
+    suffix = STATS["popups"][1]["popup_id"][:8]
+    assert f"Edge City Lanna ({suffix})" in r.json()["user"]["villages"]
 
 
 def test_legacy_magic_link_flow_still_works_end_to_end(

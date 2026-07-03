@@ -188,13 +188,19 @@ class UserCity(Base):
 
 class Village(Base):
     """A community grouping used for 'Just my village(s)' visibility. Membership is
-    backend-assigned (today: everyone auto-joins 'EE ’26'); third-party verification later."""
+    backend-assigned: derived from EdgeOS popup attendance at EdgeOS login (one village
+    per attended popup), with 'EE ’26' as the fallback for legacy paths."""
 
     __tablename__ = "villages"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     slug: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    # EdgeOS popup UUID this village mirrors. NULL = local-only village (e.g. the default
+    # 'EE '26' until its popup claims it via config.EDGEOS_POPUP_VILLAGE_SLUGS).
+    edgeos_popup_id: Mapped[str | None] = mapped_column(
+        String, nullable=True, unique=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
     )

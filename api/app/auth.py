@@ -23,7 +23,11 @@ from .models import (
     utcnow,
 )
 from .security import hash_token, new_token
-from .villages import assign_default_village
+from .villages import (
+    assign_default_village,
+    assign_villages_from_attendance,
+    village_ids_for,
+)
 
 
 class _EmailParams(TypedDict):
@@ -221,7 +225,6 @@ def verify_edgeos_code(db: DbSession, raw_email: str, code: str) -> VerifyResult
         db.add(user)
         db.flush()  # assign user.id (and the default temp username)
         user.username = f"user-{user.id}"  # placeholder; user picks a real one at onboarding
-        assign_default_village(db, user)  # every new user joins the default village
     else:
         if user.verified_at is None:
             user.verified_at = now  # pre-seeded ghost logging in for the first time
@@ -232,8 +235,17 @@ def verify_edgeos_code(db: DbSession, raw_email: str, code: str) -> VerifyResult
         user.edgeos_human_id = str(profile["id"])
     if allowed is not None and allowed.claimed_by_user_id is None:
         allowed.claimed_by_user_id = user.id
+
+    # Villages are derived from attendance on this path (one per attended popup) — the
+    # blanket default is only a fallback when stats couldn't be fetched, so a user isn't
+    # left village-less (invisible to / blind to every visibility='village' profile).
     if stats is not None:
         _sync_attendance(db, user, stats, now)
+        assign_villages_from_attendance(db, user, stats.get("popups", []))
+    elif not village_ids_for(db, user.id):
+        # Query, don't touch user.villages: expire_on_commit=False would serialize the
+        # relationship's stale pre-enroll cache into the login response.
+        assign_default_village(db, user)
 
     session_token = _create_session(db, user, now)
     db.commit()
