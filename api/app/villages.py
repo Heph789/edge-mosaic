@@ -94,10 +94,14 @@ def assign_villages_from_attendance(
     db: Session, user: User, popups: list[dict]
 ) -> None:
     """Enroll `user` in one village per attended EdgeOS popup (additive-only; a later
-    sync never revokes memberships granted earlier or by other paths). Caller commits."""
+    sync never revokes memberships granted earlier or by other paths). Caller commits.
+
+    Only popups with total_days > 0 count — a 0-day entry in the EdgeOS history (e.g.
+    an application/ticket with no checked-in days) grants no membership.
+    """
     for popup in popups:
         popup_id = popup.get("popup_id")
-        if not popup_id:
+        if not popup_id or not (popup.get("total_days") or 0) > 0:
             continue
         village = village_for_popup(
             db, str(popup_id), popup.get("popup_name") or ""

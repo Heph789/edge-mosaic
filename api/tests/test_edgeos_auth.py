@@ -146,8 +146,9 @@ def test_verify_code_creates_user_with_profile_and_attendance(
     assert r.status_code == 200
     payload = r.json()
     assert payload["user"]["display_name"] == "Jane S."  # abbreviated, never full surname
-    # Villages are derived from attendance — one per popup, NOT the blanket default.
-    assert set(payload["user"]["villages"]) == {"Edge Esmeralda 2025", "Edge City Lanna"}
+    # Villages are derived from attendance — one per popup with total_days > 0, NOT the
+    # blanket default. Lanna (0 days) is snapshotted below but grants no membership.
+    assert payload["user"]["villages"] == ["Edge Esmeralda 2025"]
     assert payload["user"]["onboarded"] is False
     # Set-compare: NULL start_date sorts differently on SQLite vs Postgres.
     assert set(payload["user"]["edgeos_popups"]) == {
@@ -229,11 +230,10 @@ def test_repeat_login_resyncs_attendance_without_duplicates(client, db, monkeypa
     rows = list(db.scalars(select(EdgeosAttendance)))
     assert [r.popup_name for r in rows] == ["Edge Esmeralda 2025"]  # replaced, not appended
 
-    # Village memberships are additive-only: the Lanna grant survives the shrunk resync,
-    # and no membership row is duplicated.
+    # Village memberships are additive-only and undated: no membership row is duplicated
+    # by the resync.
     user = db.scalar(select(User))
-    names = [uv.village.name for uv in user.villages]
-    assert sorted(names) == ["Edge City Lanna", "Edge Esmeralda 2025"]
+    assert [uv.village.name for uv in user.villages] == ["Edge Esmeralda 2025"]
 
 
 def test_verify_survives_enrichment_failure(client, db, monkeypatch):
@@ -268,12 +268,11 @@ def test_aliased_popup_claims_preexisting_village(client, db, monkeypatch):
         "/auth/edgeos/verify", json={"email": "jane@example.com", "code": "123456"}
     )
     assert r.status_code == 200
-    assert set(r.json()["user"]["villages"]) == {"EE '26", "Edge City Lanna"}
+    assert r.json()["user"]["villages"] == ["EE '26"]
 
     villages = list(db.scalars(select(Village)))
-    assert len(villages) == 2  # no "Edge Esmeralda 2025" duplicate minted
-    claimed = next(v for v in villages if v.slug == "ee-26")
-    assert claimed.edgeos_popup_id == STATS["popups"][0]["popup_id"]
+    assert len(villages) == 1  # no "Edge Esmeralda 2025" duplicate minted
+    assert villages[0].edgeos_popup_id == STATS["popups"][0]["popup_id"]
 
 
 def test_unrelated_name_collision_gets_suffixed_village(client, db, monkeypatch):
@@ -282,7 +281,7 @@ def test_unrelated_name_collision_gets_suffixed_village(client, db, monkeypatch)
     from app.models import Village
 
     _mock_edgeos(monkeypatch)
-    db.add(Village(name="Edge City Lanna", slug="edge-city-lanna"))
+    db.add(Village(name="Edge Esmeralda 2025", slug="edge-esmeralda-2025"))
     db.commit()
 
     r = client.post(
@@ -290,10 +289,10 @@ def test_unrelated_name_collision_gets_suffixed_village(client, db, monkeypatch)
     )
     assert r.status_code == 200
 
-    local = db.scalar(select(Village).where(Village.slug == "edge-city-lanna"))
+    local = db.scalar(select(Village).where(Village.slug == "edge-esmeralda-2025"))
     assert local.edgeos_popup_id is None  # untouched
-    suffix = STATS["popups"][1]["popup_id"][:8]
-    assert f"Edge City Lanna ({suffix})" in r.json()["user"]["villages"]
+    suffix = STATS["popups"][0]["popup_id"][:8]
+    assert f"Edge Esmeralda 2025 ({suffix})" in r.json()["user"]["villages"]
 
 
 def test_legacy_magic_link_flow_still_works_end_to_end(
