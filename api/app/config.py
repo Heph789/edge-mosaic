@@ -195,6 +195,19 @@ ALLOWLIST_CSV_DEFAULT = next(
     iter(sorted((API_DIR / "input").glob("attendees-*.csv"))), None
 )
 
+# --- EdgeOS third-party auth (§2) -----------------------------------------------------
+# API key for the EdgeOS third-party surface (X-Third-Party-Api-Key). EdgeOS's
+# existing-human check replaces the CSV allowlist as the "valid edge email" gate for new
+# users: its third-party login sends an OTP only for humans EdgeOS already knows (401
+# otherwise, no email sent). Leave UNSET locally to make every EdgeOS login attempt fail
+# closed (code requests appear sent; verification never succeeds).
+EDGEOS_API_KEY = os.environ.get("EDGEOS_KEY", "")
+EDGEOS_API_BASE = os.environ.get("EDGEOS_API_BASE", "https://api.edgeos.world/api/v1")
+EDGEOS_TIMEOUT = 10.0
+# Flip to route EVERYONE through the EdgeOS OTP flow, retiring the legacy magic-link path
+# for pre-EdgeOS email users ("strictly EdgeOS" end state).
+EDGEOS_ONLY_LOGIN = os.environ.get("EDGEOS_ONLY_LOGIN", "").lower() in ("1", "true", "yes")
+
 # --- Slice 4: cron + email (§5) -------------------------------------------------------
 # Email backend behind the send_email() seam. Default 'console' (no real delivery) so the
 # app stays send-safe until a verified domain is wired; set EMAIL_BACKEND=resend in prod.

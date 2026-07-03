@@ -25,6 +25,18 @@ class VerifyIn(BaseModel):
     token: str = Field(min_length=1)
 
 
+class StartLoginOut(BaseModel):
+    """Unified login entry response: which second step the UI should render."""
+
+    mode: str  # 'link' — check your inbox for a magic link; 'code' — show the OTP input
+    message: str
+
+
+class EdgeosVerifyIn(BaseModel):
+    email: EmailStr
+    code: str = Field(pattern=r"^\d{6}$")
+
+
 class LinkIn(BaseModel):
     label: str = Field(min_length=1, max_length=config.LINK_LABEL_MAX_CHARS)
     url: str = Field(min_length=1, max_length=config.LINK_URL_MAX_CHARS)
@@ -55,6 +67,9 @@ class UserOut(BaseModel):
     cities: list[str]
     links: list[LinkOut]
     villages: list[str]  # village names the user belongs to (backend-assigned)
+    # Popups attended per the user's EdgeOS profile (snapshot from the last EdgeOS login;
+    # empty for legacy email-only accounts).
+    edgeos_popups: list[str]
 
     @classmethod
     def from_user(cls, user: "User") -> "UserOut":
@@ -75,6 +90,7 @@ class UserOut(BaseModel):
             cities=[c.name for c in user.cities],
             links=[LinkOut(label=l.label, url=l.url) for l in user.links],
             villages=[uv.village.name for uv in user.villages],
+            edgeos_popups=[a.popup_name for a in user.edgeos_attendances],
         )
 
 
