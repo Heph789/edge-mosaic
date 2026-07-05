@@ -5,46 +5,59 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Edge Mosaic — Digest</title>
 <style>
-  :root { color-scheme: light dark; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    line-height: 1.5; max-width: 680px; margin: 0 auto; padding: 32px 20px; color: #1a1a1a;
+    background-color: #f2f1ed;
+    margin: 0;
+    padding: 32px 16px;
+    font-family: "Public Sans", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
-  header { border-bottom: 2px solid #1a1a1a; padding-bottom: 16px; margin-bottom: 32px; }
-  header h1 { margin: 0 0 4px; font-size: 24px; }
-  header .meta { color: #666; font-size: 13px; }
+  .card {
+    background: #ffffff;
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 36px 40px 28px;
+    border-radius: 10px;
+    border: 1px solid #e7e6e2;
+    color: #1f1e1b;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+  header { border-bottom: 2px solid #d99a2e; padding-bottom: 16px; margin-bottom: 32px; }
+  header h1 { margin: 0 0 4px; font-size: 22px; color: #1f1e1b; }
+  header .meta { color: #6e6c67; font-size: 13px; }
   .feeder { margin-bottom: 40px; }
-  .feeder > h2 { font-size: 20px; margin: 0 0 16px; }
-  .source { margin: 0 0 20px; padding-left: 16px; border-left: 3px solid #e5e5e5; }
-  .source > h3 { font-size: 14px; margin: 0 0 10px; color: #555; text-transform: uppercase; letter-spacing: .04em; }
+  .feeder > h2 { font-size: 19px; margin: 0 0 16px; color: #1f1e1b; }
+  .source { margin: 0 0 20px; padding-left: 16px; border-left: 3px solid #e7e6e2; }
+  .source > h3 { font-size: 11px; margin: 0 0 10px; color: #6e6c67; text-transform: uppercase; letter-spacing: .06em; }
   .long { margin: 0 0 14px; }
-  .long h4 { font-size: 16px; margin: 0 0 4px; font-weight: 600; }
-  .long h4 a { color: #0b5cad; text-decoration: none; }
+  .long h4 { font-size: 15px; margin: 0 0 4px; font-weight: 600; }
+  .long h4 a { color: #a07520; text-decoration: none; }
   .long h4 a:hover { text-decoration: underline; }
-  .long .excerpt { margin: 0; color: #444; font-size: 14px; }
-  .long .date, .short .date { color: #999; font-size: 12px; }
+  .long .excerpt { margin: 0; color: #6e6c67; font-size: 14px; }
+  .long .date, .short .date { color: #8d8b86; font-size: 12px; }
   .shorts { list-style: none; padding: 0; margin: 8px 0 0; }
   .short { margin: 0 0 8px; font-size: 14px; }
-  .short a { color: #0b5cad; text-decoration: none; }
+  .short a { color: #a07520; text-decoration: none; }
   .short a:hover { text-decoration: underline; }
-  .empty { color: #999; font-style: italic; }
-  /* Compact format: one line per feeder when many are active. */
+  .empty { color: #8d8b86; font-style: italic; }
+  /* Compact format */
   .compact { list-style: none; padding: 0; margin: 0; }
-  .compact-row { padding: 10px 0; border-bottom: 1px solid #eee; font-size: 14px; }
-  .compact-row .who { font-weight: 600; color: #1a1a1a; }
-  .compact-row .who::after { content: " — "; color: #bbb; font-weight: 400; }
-  .compact-row a { color: #0b5cad; text-decoration: none; }
+  .compact-row { padding: 10px 0; border-bottom: 1px solid #e7e6e2; font-size: 14px; }
+  .compact-row .who { font-weight: 600; color: #1f1e1b; }
+  .compact-row .who::after { content: " — "; color: #c5c3be; font-weight: 400; }
+  .compact-row a { color: #a07520; text-decoration: none; }
   .compact-row a:hover { text-decoration: underline; }
-  .compact-row .date { color: #999; font-size: 12px; }
-  .quiet { border-top: 1px solid #e5e5e5; margin-top: 32px; padding-top: 20px; color: #999; }
-  .quiet h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .04em; margin: 0 0 8px; }
-  .quiet p { font-size: 13px; margin: 0; }
-  .quiet .names { color: #777; }
-  footer { border-top: 1px solid #e5e5e5; margin-top: 40px; padding-top: 16px; color: #999; font-size: 12px; }
-  footer a { color: #999; }
+  .compact-row .date { color: #8d8b86; font-size: 12px; }
+  .quiet { border-top: 1px solid #e7e6e2; margin-top: 32px; padding-top: 20px; }
+  .quiet h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #8d8b86; margin: 0 0 8px; }
+  .quiet p { font-size: 13px; margin: 0; color: #8d8b86; }
+  .quiet .names { color: #6e6c67; }
+  footer { border-top: 1px solid #e7e6e2; margin-top: 40px; padding-top: 16px; color: #8d8b86; font-size: 12px; }
+  footer a { color: #8d8b86; }
 </style>
 </head>
 <body>
+<div class="card">
 <header>
   <h1>Your Edge Mosaic digest</h1>
   <div class="meta">
@@ -63,7 +76,7 @@
     <span class="who">{{ feeder.name }}</span>
     {# Long/RSS items carry a title; Bluesky shorts carry text; title-less RSS (e.g. a
        Mastodon toot) carries only an excerpt; bare URL is the last resort. #}
-    <a href="{{ item.url }}">{{ (item.title or item.text or item.excerpt or item.url) | truncate_words(short_text_chars) }}</a>
+    <a href="{{ item.url }}" style="color: #a07520; text-decoration: none;">{{ (item.title or item.text or item.excerpt or item.url) | truncate_words(short_text_chars) }}</a>
     <span class="date">· {{ item.published_at.strftime("%b %d") }}</span>
   </li>
   {% endfor %}
@@ -79,7 +92,7 @@
 
     {% for item in source.longs %}
     <article class="long">
-      <h4><a href="{{ item.url }}">{{ item.title or item.url }}</a></h4>
+      <h4><a href="{{ item.url }}" style="color: #a07520; text-decoration: none;">{{ item.title or item.url }}</a></h4>
       {% if item.excerpt %}<p class="excerpt">{{ item.excerpt }}</p>{% endif %}
       <div class="date">{{ item.published_at.strftime("%b %d, %Y") }}</div>
     </article>
@@ -90,7 +103,7 @@
       {% for item in source.shorts %}
       <li class="short">
         {# RSS shorts (blogmarks) carry a title; Bluesky shorts carry text. #}
-        <a href="{{ item.url }}">{{ (item.title or item.text) | truncate_words(short_text_chars) }}</a>
+        <a href="{{ item.url }}" style="color: #a07520; text-decoration: none;">{{ (item.title or item.text) | truncate_words(short_text_chars) }}</a>
         <span class="date">· {{ item.published_at.strftime("%b %d") }}</span>
       </li>
       {% endfor %}
@@ -112,8 +125,9 @@
 
 <footer>
   You're receiving this because you subscribed on Edge Mosaic.
-  {% if unsubscribe_url %}<a href="{{ unsubscribe_url }}">Unsubscribe from all digests</a>.{% endif %}
+  {% if unsubscribe_url %}<a href="{{ unsubscribe_url }}" style="color: #8d8b86;">Unsubscribe from all digests</a>.{% endif %}
 </footer>
 
+</div>
 </body>
 </html>
