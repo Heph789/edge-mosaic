@@ -10,12 +10,13 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import TypedDict
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session as DbSession
 
 from . import config, edgeos
 from .models import (
     AllowedEmail,
+    AuthThrottleEvent,
     EdgeosAttendance,
     MagicLinkToken,
     Session,
@@ -39,6 +40,40 @@ class _EmailParams(TypedDict):
 
 def normalize_email(email: str) -> str:
     return email.strip().lower()
+
+
+class ThrottledError(Exception):
+    """This email hit a per-window auth rate limit — respond 429, do no auth work."""
+
+
+def _throttle_events(db: DbSession, email: str, kind: str) -> int:
+    """Prune expired throttle rows, then count this email's live events of `kind`."""
+    cutoff = utcnow() - timedelta(minutes=config.AUTH_THROTTLE_WINDOW_MINUTES)
+    # Global prune (all emails) — keeps the table bounded to one window of activity.
+    db.execute(
+        AuthThrottleEvent.__table__.delete().where(
+            AuthThrottleEvent.created_at < cutoff
+        )
+    )
+    return db.scalar(
+        select(func.count())
+        .select_from(AuthThrottleEvent)
+        .where(AuthThrottleEvent.email == email, AuthThrottleEvent.kind == kind)
+    )
+
+
+def throttle_start(db: DbSession, raw_email: str) -> None:
+    """Gate + record one login-start (magic-link or EdgeOS-code request) for this email.
+
+    Caps how fast a single address can trigger sends — our Resend emails or, worse,
+    OTP emails relayed to arbitrary EdgeOS members through /auth/start.
+    """
+    email = normalize_email(raw_email)
+    if _throttle_events(db, email, "start") >= config.AUTH_START_MAX_PER_WINDOW:
+        db.commit()  # keep the prune
+        raise ThrottledError(email)
+    db.add(AuthThrottleEvent(email=email, kind="start"))
+    db.commit()
 
 
 def is_allowed(db: DbSession, email: str) -> bool:
@@ -191,16 +226,23 @@ def verify_edgeos_code(db: DbSession, raw_email: str, code: str) -> VerifyResult
     """Exchange an EdgeOS OTP for a local session: verify with EdgeOS, get-or-create the
     user, snapshot their EdgeOS profile + popup attendance, mint a session.
 
-    Returns None if EdgeOS rejects the code. Raises EdgeosUnavailableError if EdgeOS is
-    unreachable for the verification step itself (enrichment failures are swallowed —
-    they must never block a successful login).
+    Returns None if EdgeOS rejects the code. Raises ThrottledError once this email has
+    burned its failed-attempt budget (brute-force cap on the 6-digit space — EdgeOS's own
+    lockout behavior is unknown, so don't rely on it). Raises EdgeosUnavailableError if
+    EdgeOS is unreachable for the verification step itself (enrichment failures are
+    swallowed — they must never block a successful login).
     """
     # Local import: allowlist.py imports normalize_email from this module.
     from .allowlist import abbreviate_name
 
     email = normalize_email(raw_email)
+    if _throttle_events(db, email, "verify_fail") >= config.AUTH_VERIFY_MAX_FAILURES:
+        db.commit()  # keep the prune
+        raise ThrottledError(email)
     access_token = edgeos.verify_login_code(email, code)
     if access_token is None:
+        db.add(AuthThrottleEvent(email=email, kind="verify_fail"))
+        db.commit()
         return None
 
     now = utcnow()

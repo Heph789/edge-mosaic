@@ -29,8 +29,9 @@ export function Login() {
       const { mode } = await api.startLogin(email);
       setPhase(mode === "code" ? "code" : "link-sent");
     } catch (err) {
-      if (err instanceof ApiError && err.status === 503) {
-        setError(err.message); // EdgeOS briefly down — retryable, not an eligibility leak
+      if (err instanceof ApiError && (err.status === 503 || err.status === 429)) {
+        // EdgeOS briefly down / rate-limited — retryable, not an eligibility leak.
+        setError(err.message);
       } else {
         setPhase("link-sent"); // swallow — never reveal anything about this address
       }

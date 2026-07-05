@@ -237,6 +237,8 @@ export const api = {
     request<StartLoginResult>("/auth/start", { method: "POST", json: { email } }),
   verifyEdgeosCode: (email: string, code: string) =>
     request<VerifyResult>("/auth/edgeos/verify", { method: "POST", json: { email, code } }),
+  // LEGACY — backwards compat for pre-EdgeOS email accounts only; not called by the SPA.
+  // New profiles must go through startLogin (EdgeOS is the eligibility gate).
   requestLink: (email: string) =>
     request<{ message: string }>("/auth/request-link", { method: "POST", json: { email } }),
   verify: (token: string) =>

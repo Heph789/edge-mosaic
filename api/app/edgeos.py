@@ -17,15 +17,29 @@ return 503 instead of silently eating a login.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import httpx
+import sentry_sdk
 
 from . import config
+
+logger = logging.getLogger(__name__)
 
 
 class EdgeosUnavailableError(Exception):
     """EdgeOS couldn't be reached (network error / 5xx) — retryable, not an auth verdict."""
+
+
+def _unavailable(message: str, exc: Exception | None = None) -> EdgeosUnavailableError:
+    """Build the error AND report it: endpoints translate it into an intentional 503,
+    which Sentry's FastAPI integration won't capture — without this, a broken key or an
+    EdgeOS outage would only surface through user reports."""
+    logger.warning("EdgeOS unavailable: %s", message)
+    err = EdgeosUnavailableError(message)
+    sentry_sdk.capture_exception(err if exc is None else exc)  # no-op without a DSN
+    return err
 
 
 def _request(method: str, path: str, **kwargs: Any) -> httpx.Response:
@@ -37,9 +51,9 @@ def _request(method: str, path: str, **kwargs: Any) -> httpx.Response:
             **kwargs,
         )
     except httpx.HTTPError as exc:
-        raise EdgeosUnavailableError(f"EdgeOS request failed: {exc}") from exc
+        raise _unavailable(f"EdgeOS request failed: {exc}", exc) from exc
     if resp.status_code >= 500:
-        raise EdgeosUnavailableError(f"EdgeOS returned {resp.status_code} for {path}")
+        raise _unavailable(f"EdgeOS returned {resp.status_code} for {path}")
     return resp
 
 

@@ -103,6 +103,12 @@ KIND_SHORT_MAX_CHARS = 1500
 # Token lifetimes. Magic links are short-lived + single-use; sessions are long + revocable.
 MAGIC_LINK_TTL_MINUTES = 15
 SESSION_TTL_DAYS = 30
+# Per-email login throttling (DB-backed so it holds across workers/restarts). Starts cap
+# how fast one email can trigger sends (ours or EdgeOS's OTP relay); verify-failures cap
+# brute-forcing the 6-digit code space. Window matches the link/OTP TTL.
+AUTH_THROTTLE_WINDOW_MINUTES = 15
+AUTH_START_MAX_PER_WINDOW = 3
+AUTH_VERIFY_MAX_FAILURES = 5
 DISPLAY_NAME_MAX_CHARS = 50
 # Public-profile handle (/p/{username}). See app/usernames.py for the format rules.
 USERNAME_MIN_CHARS = 3

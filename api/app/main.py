@@ -64,6 +64,7 @@ app.mount(
 _ELIGIBLE_MSG = "If your email is eligible, a login link is on its way."
 _CODE_MSG = "If your email is eligible, a 6-digit code is on its way."
 _EDGEOS_DOWN_MSG = "Login is temporarily unavailable. Please try again in a minute."
+_THROTTLED_MSG = "Too many attempts for this email. Please wait a few minutes and try again."
 
 
 @app.get("/health")
@@ -73,9 +74,17 @@ def health() -> dict[str, str]:
 
 @app.post("/auth/request-link", response_model=GenericMessage)
 def request_link(body: RequestLinkIn, db: DbDep, background_tasks: BackgroundTasks) -> GenericMessage:
+    """LEGACY — backwards compatibility for pre-EdgeOS email accounts only. New profiles
+    must go through /auth/start, where the EdgeOS existence check is the eligibility
+    gate; this endpoint still honors the CSV allowlist, so calling it for a new address
+    would create a profile that bypasses EdgeOS. The SPA no longer calls it directly."""
     # Always the same response — never reveals allowlist membership (§2 login privacy).
     # Email is dispatched after the DB session is released so the pool slot isn't held
     # during the Resend HTTP call.
+    try:
+        auth.throttle_start(db, body.email)
+    except auth.ThrottledError:
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, _THROTTLED_MSG)
     params = auth.request_magic_link(db, body.email)
     if params is not None:
         background_tasks.add_task(email.send_email, **params)
@@ -90,7 +99,10 @@ def start_login(
     EdgeOS OTP. Within a mode the response is identical whether or not the email is
     eligible (§2 login privacy) — the EdgeOS existence check replaces the allowlist."""
     try:
+        auth.throttle_start(db, body.email)
         result = auth.start_login(db, body.email)
+    except auth.ThrottledError:
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, _THROTTLED_MSG)
     except edgeos.EdgeosUnavailableError:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, _EDGEOS_DOWN_MSG)
     if result.email_params is not None:
@@ -105,6 +117,8 @@ def start_login(
 def verify_edgeos(body: EdgeosVerifyIn, db: DbDep) -> VerifyOut:
     try:
         result = auth.verify_edgeos_code(db, body.email, body.code)
+    except auth.ThrottledError:
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, _THROTTLED_MSG)
     except edgeos.EdgeosUnavailableError:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, _EDGEOS_DOWN_MSG)
     if result is None:

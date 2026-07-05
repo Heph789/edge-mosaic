@@ -279,6 +279,21 @@ class AllowedEmail(Base):
     )
 
 
+class AuthThrottleEvent(Base):
+    """One login-flow event for per-email rate limiting (§2). Keyed by EMAIL — throttling
+    must bite before any user row exists. Rows older than the throttle window are pruned
+    opportunistically on every check."""
+
+    __tablename__ = "auth_throttle_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String, nullable=False)  # lowercased
+    kind: Mapped[str] = mapped_column(String, nullable=False)  # 'start' | 'verify_fail'
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+
+
 class MagicLinkToken(Base):
     """Single-use login token. Keyed by EMAIL — the user may not exist yet at request."""
 
