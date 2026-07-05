@@ -18,6 +18,11 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
+# Shared by every deployer that runs `alembic upgrade head`. The api service and both cron
+# services (scrape, digest) run it in Railway's pre-deploy step, and a push redeploys them
+# concurrently — so they'd otherwise race to apply a brand-new migration at the same time.
+_MIGRATION_LOCK_KEY = 0x6D6F73616963  # "mosaic"
+
 
 def run_migrations_offline() -> None:
     context.configure(
@@ -38,6 +43,14 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
+        if connection.dialect.name == "postgresql":
+            # Serialize concurrent `alembic upgrade head` across services: the loser blocks
+            # here until the winner commits, then finds the schema already at head and no-ops.
+            # Session-level lock — released when this connection disconnects even if a migration
+            # raises; NullPool guarantees that disconnect. commit() ends the implicit txn the
+            # lock query opened so Alembic can manage its own transaction (the lock outlives it).
+            connection.exec_driver_sql(f"SELECT pg_advisory_lock({_MIGRATION_LOCK_KEY})")
+            connection.commit()
         context.configure(
             connection=connection,
             target_metadata=target_metadata,

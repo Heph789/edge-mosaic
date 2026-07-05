@@ -264,6 +264,11 @@ authed calls and magic links will break.
 - **Migrations:** run as the `preDeployCommand` (`alembic upgrade head`) before each new version
   goes live — not in the web start command. New migrations ship by adding files under
   `api/alembic/versions/`; they apply on the next deploy with no manual step.
+  - All three services (api, scrape, digest) share the image and each run `alembic upgrade head`
+    in pre-deploy, so a push redeploys them concurrently. `alembic/env.py` takes a Postgres
+    advisory lock around the upgrade, so they serialize instead of racing to apply a new
+    migration — the first applies it, the rest block briefly then no-op. Keep the cron services'
+    `preDeployCommand` as-is; the lock is what makes running it on every service safe.
 - **Local media is ephemeral.** Uploaded profile/tile images are written to the container's
   `data/media/` (the `app/storage.py` seam) and are **lost on every redeploy/restart**, and
   not shared across the api + cron containers. For durable images, swap `storage.py` to object
