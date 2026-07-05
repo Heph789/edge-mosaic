@@ -102,6 +102,10 @@ class User(Base):
     # Pre-seeded event speaker (Edge Esmeralda directory seed). Display/curation only, no auth
     # meaning. Notables are a subset — every notable is also a speaker.
     speaker: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # EdgeOS human UUID, set the first time the user signs in via the EdgeOS OTP flow.
+    # NULL = legacy email-only account (or never logged in) — such users keep the
+    # magic-link path; see auth.start_login().
+    edgeos_human_id: Mapped[str | None] = mapped_column(String, nullable=True, unique=True)
 
     # --- Profile (onboarding artifacts) -----------------------------------------------
     bio: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -139,6 +143,11 @@ class User(Base):
     )
     villages: Mapped[list[UserVillage]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
+    )
+    edgeos_attendances: Mapped[list[EdgeosAttendance]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        order_by="EdgeosAttendance.start_date",
     )
 
 
@@ -179,13 +188,19 @@ class UserCity(Base):
 
 class Village(Base):
     """A community grouping used for 'Just my village(s)' visibility. Membership is
-    backend-assigned (today: everyone auto-joins 'EE ’26'); third-party verification later."""
+    backend-assigned: derived from EdgeOS popup attendance at EdgeOS login (one village
+    per attended popup), with 'EE ’26' as the fallback for legacy paths."""
 
     __tablename__ = "villages"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     slug: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    # EdgeOS popup UUID this village mirrors. NULL = local-only village (e.g. the default
+    # 'EE '26' until its popup claims it via config.EDGEOS_POPUP_VILLAGE_SLUGS).
+    edgeos_popup_id: Mapped[str | None] = mapped_column(
+        String, nullable=True, unique=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
     )
@@ -215,6 +230,38 @@ class UserVillage(Base):
     village: Mapped[Village] = relationship(back_populates="members")
 
 
+class EdgeosAttendance(Base):
+    """A popup (event) the user attended, per their EdgeOS profile stats.
+
+    Snapshot data: replaced wholesale on every EdgeOS login (the sync point), so it can
+    drift between logins but never diverges within one. popup_id is EdgeOS's UUID.
+    """
+
+    __tablename__ = "edgeos_attendances"
+    __table_args__ = (
+        UniqueConstraint("user_id", "popup_id", name="uq_edgeos_attendance_user_popup"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    popup_id: Mapped[str] = mapped_column(String, nullable=False)
+    popup_name: Mapped[str] = mapped_column(String, nullable=False)
+    start_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    end_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    location: Mapped[str | None] = mapped_column(String, nullable=True)
+    image_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    total_days: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    synced_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+
+    user: Mapped[User] = relationship(back_populates="edgeos_attendances")
+
+
 class AllowedEmail(Base):
     """CSV allowlist gate — source of truth for 'valid edge email' (§2)."""
 
@@ -227,6 +274,21 @@ class AllowedEmail(Base):
     claimed_by_user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id"), nullable=True
     )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+
+
+class AuthThrottleEvent(Base):
+    """One login-flow event for per-email rate limiting (§2). Keyed by EMAIL — throttling
+    must bite before any user row exists. Rows older than the throttle window are pruned
+    opportunistically on every check."""
+
+    __tablename__ = "auth_throttle_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String, nullable=False)  # lowercased
+    kind: Mapped[str] = mapped_column(String, nullable=False)  # 'start' | 'verify_fail'
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
     )

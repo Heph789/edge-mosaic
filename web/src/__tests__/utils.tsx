@@ -24,6 +24,7 @@ export const testUser: User = {
   cities: [],
   links: [],
   villages: ["EE '26"],
+  edgeos_popups: [],
 };
 
 // Render a tree behind the real providers. `path` seeds the MemoryRouter; pass

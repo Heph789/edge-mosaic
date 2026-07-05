@@ -44,8 +44,9 @@ def sent_emails(monkeypatch):
             {"to": to, "subject": subject, "html": html, "text": text, "headers": headers}
         )
 
-    # Patch every module that bound `send_email` via `from .email import send_email`.
-    for target in ("app.auth.send_email", "app.jobs.digest.send_email"):
+    # Patch the source module (main.py calls `email.send_email`, resolved at call time)
+    # plus every module that bound it via `from ..email import send_email`.
+    for target in ("app.email.send_email", "app.jobs.digest.send_email"):
         try:
             monkeypatch.setattr(target, fake_send)
         except (AttributeError, ImportError):

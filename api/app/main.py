@@ -13,14 +13,16 @@ from fastapi import BackgroundTasks, FastAPI, File, Header, HTTPException, Path,
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from . import auth, config, email, storage, usernames
+from . import auth, config, edgeos, email, storage, usernames
 from .deps import CurrentUser, DbDep
 from .models import ProfileLink, UserCity
 from .observability import init_sentry
 from .routers import discover, digest, profiles, sources, subscriptions, unsubscribe
 from .schemas import (
+    EdgeosVerifyIn,
     GenericMessage,
     RequestLinkIn,
+    StartLoginOut,
     UpdateMeIn,
     UsernameAvailability,
     UserOut,
@@ -60,6 +62,9 @@ app.mount(
 )
 
 _ELIGIBLE_MSG = "If your email is eligible, a login link is on its way."
+_CODE_MSG = "If your email is eligible, a 6-digit code is on its way."
+_EDGEOS_DOWN_MSG = "Login is temporarily unavailable. Please try again in a minute."
+_THROTTLED_MSG = "Too many attempts for this email. Please wait a few minutes and try again."
 
 
 @app.get("/health")
@@ -69,13 +74,62 @@ def health() -> dict[str, str]:
 
 @app.post("/auth/request-link", response_model=GenericMessage)
 def request_link(body: RequestLinkIn, db: DbDep, background_tasks: BackgroundTasks) -> GenericMessage:
+    """LEGACY — backwards compatibility for pre-EdgeOS email accounts only. New profiles
+    must go through /auth/start, where the EdgeOS existence check is the eligibility
+    gate; this endpoint still honors the CSV allowlist, so calling it for a new address
+    would create a profile that bypasses EdgeOS. The SPA no longer calls it directly."""
     # Always the same response — never reveals allowlist membership (§2 login privacy).
     # Email is dispatched after the DB session is released so the pool slot isn't held
     # during the Resend HTTP call.
+    try:
+        auth.throttle_start(db, body.email)
+    except auth.ThrottledError:
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, _THROTTLED_MSG)
     params = auth.request_magic_link(db, body.email)
     if params is not None:
         background_tasks.add_task(email.send_email, **params)
     return GenericMessage(message=_ELIGIBLE_MSG)
+
+
+@app.post("/auth/start", response_model=StartLoginOut)
+def start_login(
+    body: RequestLinkIn, db: DbDep, background_tasks: BackgroundTasks
+) -> StartLoginOut:
+    """Unified login entry: legacy email accounts get a magic link, everyone else the
+    EdgeOS OTP. Within a mode the response is identical whether or not the email is
+    eligible (§2 login privacy) — the EdgeOS existence check replaces the allowlist."""
+    try:
+        auth.throttle_start(db, body.email)
+        result = auth.start_login(db, body.email)
+    except auth.ThrottledError:
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, _THROTTLED_MSG)
+    except edgeos.EdgeosUnavailableError:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, _EDGEOS_DOWN_MSG)
+    if result.email_params is not None:
+        background_tasks.add_task(email.send_email, **result.email_params)
+    return StartLoginOut(
+        mode=result.mode,
+        message=_ELIGIBLE_MSG if result.mode == "link" else _CODE_MSG,
+    )
+
+
+@app.post("/auth/edgeos/verify", response_model=VerifyOut)
+def verify_edgeos(body: EdgeosVerifyIn, db: DbDep) -> VerifyOut:
+    try:
+        result = auth.verify_edgeos_code(db, body.email, body.code)
+    except auth.ThrottledError:
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, _THROTTLED_MSG)
+    except edgeos.EdgeosUnavailableError:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, _EDGEOS_DOWN_MSG)
+    if result is None:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "That code is invalid or has expired. Request a new one.",
+        )
+    return VerifyOut(
+        session_token=result.session_token,
+        user=UserOut.from_user(result.user),
+    )
 
 
 @app.post("/auth/verify", response_model=VerifyOut)

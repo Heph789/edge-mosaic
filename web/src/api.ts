@@ -44,6 +44,8 @@ export type User = {
   cities: string[];
   links: Link[];
   villages: string[];
+  // Popups attended per the user's EdgeOS profile (empty for legacy email-only accounts).
+  edgeos_popups: string[];
 };
 
 export type PublicProfile = {
@@ -64,6 +66,10 @@ export type PublicProfile = {
 };
 
 export type VerifyResult = { session_token: string; user: User };
+
+// Unified login entry: which second step the UI should render.
+// 'link' — legacy magic link is (maybe) in the inbox; 'code' — show the EdgeOS OTP input.
+export type StartLoginResult = { mode: "link" | "code"; message: string };
 
 export type UsernameAvailability = { valid: boolean; available: boolean };
 
@@ -227,6 +233,12 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
 
 export const api = {
   // --- public auth ---
+  startLogin: (email: string) =>
+    request<StartLoginResult>("/auth/start", { method: "POST", json: { email } }),
+  verifyEdgeosCode: (email: string, code: string) =>
+    request<VerifyResult>("/auth/edgeos/verify", { method: "POST", json: { email, code } }),
+  // LEGACY — backwards compat for pre-EdgeOS email accounts only; not called by the SPA.
+  // New profiles must go through startLogin (EdgeOS is the eligibility gate).
   requestLink: (email: string) =>
     request<{ message: string }>("/auth/request-link", { method: "POST", json: { email } }),
   verify: (token: string) =>
