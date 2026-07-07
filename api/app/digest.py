@@ -58,6 +58,7 @@ class DigestSource:
 class DigestFeeder:
     feeder_id: int
     display_name: str | None
+    username: str | None
     sources: list[DigestSource]
     selected: DigestItem  # representative item — what compact mode shows for this feeder
     last_activity: datetime
@@ -145,11 +146,11 @@ def assemble_digest(
         )
         bucket.setdefault(item.kind, []).append(item)
 
-    names = dict(
-        session.execute(
-            select(User.id, User.display_name).where(User.id.in_(feeder_ids))
-        ).all()
-    )
+    feeder_rows = session.execute(
+        select(User.id, User.display_name, User.username).where(User.id.in_(feeder_ids))
+    ).all()
+    names = {row.id: row.display_name for row in feeder_rows}
+    usernames = {row.id: row.username for row in feeder_rows}
 
     feeders: list[DigestFeeder] = []
     for feeder_id, by_source in grouped.items():
@@ -207,6 +208,7 @@ def assemble_digest(
             DigestFeeder(
                 feeder_id=feeder_id,
                 display_name=names.get(feeder_id),
+                username=usernames.get(feeder_id),
                 sources=[block for _, _, block in source_blocks],
                 selected=_to_item(selected),
                 last_activity=max(recency for _, recency, _ in source_blocks),

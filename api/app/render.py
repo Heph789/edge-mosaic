@@ -11,7 +11,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 
-from .config import SHORT_TEXT_RENDER_CHARS
+from .config import APP_BASE_URL, SHORT_TEXT_RENDER_CHARS
 from .digest import DigestData
 from .text import truncate_on_word
 
@@ -35,6 +35,7 @@ def render_digest_html(data: DigestData, unsubscribe_url: str) -> str:
     feeders = [
         {
             "name": f.display_name or "Someone",
+            "profile_url": f"{APP_BASE_URL}/p/{f.username}" if f.username else None,
             "sources": f.sources,
             "selected": f.selected,
         }
@@ -48,4 +49,5 @@ def render_digest_html(data: DigestData, unsubscribe_url: str) -> str:
         window_end=data.window_end,
         short_text_chars=SHORT_TEXT_RENDER_CHARS,
         unsubscribe_url=unsubscribe_url,
+        app_base_url=APP_BASE_URL,
     )

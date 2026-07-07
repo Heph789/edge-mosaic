@@ -59,7 +59,7 @@
 <body>
 <div class="card">
 <header>
-  <h1>Your Edge Mosaic digest</h1>
+  <h1>Your <a href="{{ app_base_url }}" style="color: inherit; text-decoration: none;">Edge Mosaic</a> digest</h1>
   <div class="meta">
     {{ window_start.strftime("%b %d") }} – {{ window_end.strftime("%b %d, %Y") }}
   </div>
@@ -73,7 +73,7 @@
   {% for feeder in feeders %}
   {% set item = feeder.selected %}
   <li class="compact-row">
-    <span class="who">{{ feeder.name }}</span>
+    {% if feeder.profile_url %}<a href="{{ feeder.profile_url }}" style="color: #1f1e1b; text-decoration: none; font-weight: 600;">{{ feeder.name }}</a>{% else %}<span class="who">{{ feeder.name }}</span>{% endif %}
     {# Long/RSS items carry a title; Bluesky shorts carry text; title-less RSS (e.g. a
        Mastodon toot) carries only an excerpt; bare URL is the last resort. #}
     <a href="{{ item.url }}" style="color: #a07520; text-decoration: none;">{{ (item.title or item.text or item.excerpt or item.url) | truncate_words(short_text_chars) }}</a>
@@ -84,7 +84,7 @@
 {% else %}
 {% for feeder in feeders %}
 <section class="feeder">
-  <h2>From {{ feeder.name }}</h2>
+  <h2>From {% if feeder.profile_url %}<a href="{{ feeder.profile_url }}" style="color: #1f1e1b; text-decoration: none;">{{ feeder.name }}</a>{% else %}{{ feeder.name }}{% endif %}</h2>
 
   {% for source in feeder.sources %}
   <div class="source">
