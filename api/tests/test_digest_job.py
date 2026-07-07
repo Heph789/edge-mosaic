@@ -37,8 +37,10 @@ def _feeder_with_item(db, make_user, email, when):
     return feeder
 
 
-def _subscribe(db, sub_id, feeder_id):
-    db.add(Subscription(subscriber_id=sub_id, feeder_id=feeder_id))
+def _subscribe(db, sub_id, feeder_id, created_at=datetime(2026, 1, 1, tzinfo=timezone.utc)):
+    # Default to a long-established subscription (before any test window) so the "new sign-up"
+    # gate doesn't skip; tests that exercise a fresh sign-up pass a recent created_at.
+    db.add(Subscription(subscriber_id=sub_id, feeder_id=feeder_id, created_at=created_at))
     db.commit()
 
 
@@ -86,6 +88,35 @@ def test_paused_and_unverified_are_skipped(db, make_user, sent_emails):
     assert sent_emails == []
     assert stats["sent"] == 0
     assert db.scalar(select(SentDigest)) is None
+
+
+def test_new_signup_skips_just_completed_period(db, make_user, sent_emails):
+    # Signs up Jun 16 — after the just-completed window (Jun 8–15) ended. They must NOT get
+    # that period's digest, and nothing is logged so it re-evaluates next run.
+    sub = _subscriber(make_user, "new@example.com")
+    feeder = _feeder_with_item(db, make_user, "f@example.com", datetime(2026, 6, 10, tzinfo=timezone.utc))
+    _subscribe(db, sub.id, feeder.id, created_at=datetime(2026, 6, 16, tzinfo=timezone.utc))
+
+    stats = run_digest_job(db, today=TODAY)
+    assert sent_emails == []
+    assert stats["sent"] == 0
+    assert db.scalar(select(SentDigest)) is None  # no row → self-heals next period
+
+
+def test_new_signup_receives_from_first_full_period(db, make_user, sent_emails):
+    # Same Jun 16 sign-up, but a week later the anchor advances to Jun 22 (window Jun 15–22),
+    # which they were subscribed before the end of → they now receive it.
+    sub = _subscriber(make_user, "new@example.com")
+    feeder = _feeder_with_item(db, make_user, "f@example.com", datetime(2026, 6, 18, tzinfo=timezone.utc))
+    _subscribe(db, sub.id, feeder.id, created_at=datetime(2026, 6, 16, tzinfo=timezone.utc))
+
+    run_digest_job(db, today=date(2026, 6, 17))  # window Jun 8–15 → skipped (joined after)
+    assert sent_emails == []
+
+    stats = run_digest_job(db, today=date(2026, 6, 24))  # window Jun 15–22 → eligible
+    assert stats["sent"] == 1
+    assert len(sent_emails) == 1
+    assert db.scalar(select(SentDigest)).anchor_date == date(2026, 6, 22)
 
 
 def test_out_of_window_items_excluded(db, make_user, sent_emails):

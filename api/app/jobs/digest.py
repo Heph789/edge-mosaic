@@ -15,7 +15,7 @@ import logging
 from datetime import date
 
 import sentry_sdk
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .. import config
@@ -68,6 +68,20 @@ def send_one(db: Session, user: User, anchor: date) -> bool | None:
         return None
 
     start, end = window_for(user.digest_frequency, anchor)
+    # Don't send a just-completed period the subscriber only joined at/after the end of —
+    # otherwise a brand-new sign-up receives the previous period's digest on their first run.
+    # Gate on having a subscription created before the period ended (compared DB-side to avoid
+    # naive/aware datetime mismatches). No row is logged, so this self-heals: once the anchor
+    # advances, they start with the first period they were actually subscribed within.
+    joined_before_period_end = db.scalar(
+        select(func.count(Subscription.id)).where(
+            Subscription.subscriber_id == user.id,
+            Subscription.created_at < end,
+        )
+    )
+    if not joined_before_period_end:
+        return None
+
     data = assemble_digest(db, user, window_start=start, now=end)
     has_content = bool(data.feeders)
 
